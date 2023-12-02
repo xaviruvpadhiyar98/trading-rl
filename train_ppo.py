@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import polars as pl
-from stable_baselines3 import A2C
+from stable_baselines3 import PPO
 from stable_baselines3.common.env_checker import check_env
 
 from callbacks.eval_callback import EvalCallback
@@ -17,8 +17,8 @@ EVAL_CLOSE_PRICES = pl.read_parquet(EVAL_FILE)["Close"].to_numpy()
 
 
 def main():
-    model_name = "single_stock_trading_a2c"
-    num_envs = 128
+    model_name = "single_stock_trading_ppo"
+    num_envs = 8
     check_env(StockTradingEnv(CLOSE_PRICES, seed=0))
 
     vec_env = make_vec_env(
@@ -30,7 +30,7 @@ def main():
 
     if Path(f"trained_models/{model_name}.zip").exists():
         reset_num_timesteps = False
-        model = A2C.load(
+        model = PPO.load(
             f"trained_models/{model_name}.zip",
             vec_env,
             print_system_info=True,
@@ -38,7 +38,7 @@ def main():
         )
     else:
         reset_num_timesteps = True
-        model = A2C(
+        model = PPO(
             "MlpPolicy",
             vec_env,
             verbose=2,
@@ -51,7 +51,7 @@ def main():
         total_timesteps=10_000_000,
         progress_bar=True,
         reset_num_timesteps=reset_num_timesteps,
-        callback=EvalCallback(),
+        callback=EvalCallback(model_name="ppo"),
         tb_log_name=model_name,
     )
     model.save("trained_models/" + model_name)

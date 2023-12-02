@@ -48,44 +48,49 @@ class EvalCallback(BaseCallback):
         return True
 
     def _on_rollout_end(self) -> None:
-        if self.num_timesteps % self.log_counter == 0:
-            infos = self.locals["infos"]
-            sorted_infos = sorted(
-                infos, key=lambda x: x["combined_total_profit"], reverse=True
-            )
-            best_info = sorted_infos[0]
 
-            for k, v in best_info.items():
-                if "combined_" in k:
-                    self.logger.record(f"combined_profit/{k}", v)
+        if (((self.num_timesteps % self.log_counter) != 0) and self.model_name == "a2c"):
+            return True
 
-                elif "moves" in k:
-                    self.logger.record(f"moves/{k}", v)
+        infos = self.locals["infos"]
+        sorted_infos = sorted(
+            infos, key=lambda x: x["combined_total_profit"], reverse=True
+        )
+        best_info = sorted_infos[0]
 
-                elif "_loss" in k:
-                    self.logger.record(f"losses/{k}", v)
+        for k, v in best_info.items():
+            if "combined_" in k:
+                self.logger.record(f"combined_profit/{k}", v)
 
-                elif "_profit" in k:
-                    self.logger.record(f"profits/{k}", v)
+            elif "moves" in k:
+                self.logger.record(f"moves/{k}", v)
 
-                elif "_trade" in k or k.endswith("%"):
-                    self.logger.record(f"trades/{k}", v)
+            elif "_loss" in k:
+                self.logger.record(f"losses/{k}", v)
 
-                elif "_counter" in k:
-                    self.logger.record(f"counters/{k}", v)
+            elif "_profit" in k:
+                self.logger.record(f"profits/{k}", v)
 
-                elif "_streak" in k:
-                    self.logger.record(f"steaks/{k}", v)
+            elif "_trade" in k or k.endswith("%"):
+                self.logger.record(f"trades/{k}", v)
 
-                else:
-                    self.logger.record(f"commons/{k}", v)
+            elif "_counter" in k:
+                self.logger.record(f"counters/{k}", v)
 
-                if k == "combined_total_profit" and v > 8000:
-                    Path(f"logs/{self.num_timesteps}").write_text(
-                        json.dumps(best_info, default=str, indent=4)
-                    )
+            elif "_streak" in k:
+                self.logger.record(f"steaks/{k}", v)
 
-            self.test_and_log()
+            else:
+                self.logger.record(f"commons/{k}", v)
+
+            if k == "portfolio_value" and v > 18000:
+                dir = Path(f"logs/{self.model_name}/")
+                dir.mkdir(parents=True, exist_ok=True)
+                (dir / str(self.num_timesteps)).write_text(
+                    json.dumps(best_info, default=str, indent=4)
+                )
+
+        self.test_and_log()
 
     def _on_training_end(self) -> None:
         self.test_and_log()
