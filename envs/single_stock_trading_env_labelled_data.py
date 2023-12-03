@@ -18,7 +18,7 @@ class StockTradingEnv(gym.Env):
         [0, 1, 2]
     """
 
-    def __init__(self, close_prices, seed):
+    def __init__(self, close_prices, seed, labeled_actions):
         super().__init__()
 
         self.close_prices = close_prices
@@ -34,7 +34,7 @@ class StockTradingEnv(gym.Env):
         )
         self.action_space = Discrete(3)
         self.seed = seed
-        self.threshold = 10_000
+        self.labeled_actions = labeled_actions
 
     def reset(self, *, seed=None, options=None):
         super().reset(seed=self.seed, options=options)
@@ -99,6 +99,44 @@ class StockTradingEnv(gym.Env):
         description = ""
 
         predicted_action = ACTION_MAP[action]
+        expected_action = self.labeled_actions[self.counter]
+
+        if predicted_action != expected_action:
+            reward -= 50_000
+            truncated = True
+            self.wrong_trade += 1
+            description = f"At {self.counter} Expected {expected_action} but got {predicted_action}"
+        
+        else:
+            if predicted_action == "BUY":
+                reward += 1
+                shares_bought = available_amount // close_price
+                buy_price = close_price * shares_bought
+                shares_holding += shares_bought
+                available_amount -= buy_price
+
+                self.correct_trade += 1
+                self.good_buy_counter += 1
+                self.buy_price_index = self.counter
+                description = f"{shares_bought} shares bought at {close_price:.2f}"
+
+            elif predicted_action == "HOLD":
+                if shares_holding == 0:
+                    reward += 1
+                    self.holds_with_no_shares_counter += 1
+                    description = f"{shares_holding} shares holding."
+                else:
+                    self.hold_counter += 1
+                    profit = (close_price * shares_holding) - buy_price
+                    reward += profit
+
+
+
+
+            elif predicted_action == "SELL":
+                ...
+
+
 
         if predicted_action == "BUY":
             self.buy_counter += 1
