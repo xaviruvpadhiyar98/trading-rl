@@ -113,6 +113,8 @@ class StockTradingEnv(gym.Env):
                 shares_holding += shares_bought
                 available_amount -= buy_price
 
+                # test simple reward
+                reward += 1
                 # reward += shares_bought
                 # self.track_portfolio.append({
                 #     'counter': self.counter,
@@ -161,6 +163,8 @@ class StockTradingEnv(gym.Env):
         elif predicted_action == "HOLD":
             self.correct_trade += 1
             if shares_holding == 0:
+                # test simple reward
+                reward += 1
                 self.holds_with_no_shares_counter += 1
                 description = f"{shares_holding} shares holding."
             else:

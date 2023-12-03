@@ -34,7 +34,7 @@ def main():
             f"trained_models/{model_name}.zip",
             vec_env,
             print_system_info=True,
-            device="cpu",
+            device="auto",
         )
     else:
         reset_num_timesteps = True
@@ -42,7 +42,8 @@ def main():
             "MlpPolicy",
             vec_env,
             verbose=2,
-            device="cpu",
+            # n_steps=128,
+            device="auto",
             ent_coef=0.05,
             tensorboard_log="tensorboard_log",
         )

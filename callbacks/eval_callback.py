@@ -54,7 +54,7 @@ class EvalCallback(BaseCallback):
 
         infos = self.locals["infos"]
         sorted_infos = sorted(
-            infos, key=lambda x: x["combined_total_profit"], reverse=True
+            infos, key=lambda x: x["portfolio_value"], reverse=True
         )
         best_info = sorted_infos[0]
 

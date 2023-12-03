@@ -42,6 +42,7 @@ def main():
             "MlpPolicy",
             vec_env,
             verbose=2,
+            # n_steps=10,
             device="cpu",
             ent_coef=0.05,
             tensorboard_log="tensorboard_log",
