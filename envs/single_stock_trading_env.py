@@ -115,7 +115,7 @@ class StockTradingEnv(gym.Env):
                 available_amount -= buy_price
 
                 # test simple reward
-                reward += 1
+                reward += 0.01
                 # reward += shares_bought
                 # self.track_portfolio.append({
                 #     'counter': self.counter,

@@ -7,11 +7,23 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 
 from common.make_vec_env import make_vec_env
-from envs.single_stock_trading_env import StockTradingEnv
+from envs.single_stock_trading_past_n_price_env import StockTradingEnv
 
 TICKER = "SBIN.NS"
 EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
-EVAL_CLOSE_PRICES = pl.read_parquet(EVAL_FILE)["Close"].to_numpy()
+df = pl.read_parquet(EVAL_FILE)
+EVAL_CLOSE_PRICES = (
+    df.with_columns(index=pl.int_range(0, end=df.shape[0], eager=True))
+    .sort("index")
+    .set_sorted("index")
+    .group_by_dynamic(
+        "index", every="1i", period="40i", include_boundaries=True, closed="right"
+    )
+    .agg(pl.col("Close"))
+    .with_columns(pl.col("Close").list.len().alias("Count"))
+    .filter(pl.col("Count") == 40)["Close"]
+    .to_numpy()
+)
 
 
 class EvalCallback(BaseCallback):
@@ -48,14 +60,11 @@ class EvalCallback(BaseCallback):
         return True
 
     def _on_rollout_end(self) -> None:
-
-        if (((self.num_timesteps % self.log_counter) != 0) and self.model_name == "a2c"):
+        if ((self.num_timesteps % self.log_counter) != 0) and self.model_name == "a2c":
             return True
 
         infos = self.locals["infos"]
-        sorted_infos = sorted(
-            infos, key=lambda x: x["portfolio_value"], reverse=True
-        )
+        sorted_infos = sorted(infos, key=lambda x: x["portfolio_value"], reverse=True)
         best_info = sorted_infos[0]
 
         for k, v in best_info.items():

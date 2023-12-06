@@ -106,7 +106,7 @@ class StockTradingEnv(gym.Env):
             truncated = True
             self.wrong_trade += 1
             description = f"At {self.counter} Expected {expected_action} but got {predicted_action}"
-        
+
         else:
             if predicted_action == "BUY":
                 reward += 1
@@ -130,13 +130,8 @@ class StockTradingEnv(gym.Env):
                     profit = (close_price * shares_holding) - buy_price
                     reward += profit
 
-
-
-
             elif predicted_action == "SELL":
                 ...
-
-
 
         if predicted_action == "BUY":
             self.buy_counter += 1

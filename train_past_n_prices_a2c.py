@@ -6,19 +6,33 @@ from stable_baselines3.common.env_checker import check_env
 
 from callbacks.eval_callback import EvalCallback
 from common.make_vec_env import make_vec_env
-from envs.single_stock_trading_env import StockTradingEnv
+from envs.single_stock_trading_past_n_price_env import StockTradingEnv
 
 TICKER = "SBIN.NS"
-TRAIN_FILE = Path("datasets") / "LabelTradeSBI.NS.xlsx"
-CLOSE_PRICES = pl.read_parquet(TRAIN_FILE)["Close"].to_numpy()
-LABELED_ACTIONS = pl.read_parquet(TRAIN_FILE)["Action"]
+TRAIN_FILE = Path("datasets") / f"{TICKER}_train"
+EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
+
+df = pl.read_parquet(TRAIN_FILE)
+
+CLOSE_PRICES = (
+    df.with_columns(index=pl.int_range(0, end=df.shape[0], eager=True))
+    .sort("index")
+    .set_sorted("index")
+    .group_by_dynamic(
+        "index", every="1i", period="40i", include_boundaries=True, closed="right"
+    )
+    .agg(pl.col("Close"))
+    .with_columns(pl.col("Close").list.len().alias("Count"))
+    .filter(pl.col("Count") == 40)["Close"]
+    .to_numpy()
+)
+# EVAL_CLOSE_PRICES = pl.read_parquet(EVAL_FILE)["Close"].to_numpy()
 
 
 def main():
-    model_name = "single_labelled_stock_trading_a2c"
+    model_name = "single_stock_trading_past_n_prices_a2c"
     num_envs = 128
     check_env(StockTradingEnv(CLOSE_PRICES, seed=0))
-
     vec_env = make_vec_env(
         env_id=StockTradingEnv,
         close_prices=CLOSE_PRICES,
@@ -47,7 +61,7 @@ def main():
         )
 
     model.learn(
-        total_timesteps=10_000_000,
+        total_timesteps=30_000_000,
         progress_bar=True,
         reset_num_timesteps=reset_num_timesteps,
         callback=EvalCallback(),

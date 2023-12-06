@@ -2,6 +2,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env.patch_gym import _patch_env
 
+
 def make_vec_env(env_id, close_prices, start_seed, n_envs):
     def make_env(rank: int):
         def _init():
