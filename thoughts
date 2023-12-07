@@ -1,0 +1,19 @@
+Selling Below the Buy Price: If the model attempts to sell shares at a price lower than the buy price, this could be considered a poor trade, especially if the difference is significant. You might want to penalize such actions, especially if they're not part of a larger strategy like cutting losses.
+
+Buying at a High Price: While you've addressed the issue of insufficient funds, another scenario is buying at a price significantly higher than the recent average or the recent low. This could be seen as a poor decision, especially if the model has information suggesting the price is peaking or inflated.
+
+Excessive Trading: In some trading strategies, excessive buying and selling (high turnover) can be detrimental due to transaction costs and potential missed opportunities. If your model frequently flips between "BUY" and "SELL" without a significant change in market conditions, it might be engaging in unproductive behavior.
+
+Inactivity in Favorable Conditions: If the model holds for an extended period when there are favorable conditions for buying (and it has the funds) or selling (and it holds shares), this could be considered a missed opportunity or poor strategy.
+
+Consistency in Actions: Ensuring that the model's actions are consistent with its predictions. For example, if the model predicts a price increase but then sells, or predicts a decrease but buys, this could be flagged as a wrong trade.
+
+
+Transaction #1550: Correct decision to HOLD
+Duration of Waiting: 1550 intervals
+Current Share Price: ₹543.20
+Holding Threshold: ₹525.4018711813902
+Reward Accumulated: ₹17.79814102564103
+Min Past Price: ₹525.75 
+Max Past Price: ₹547.7999877929688 
+Portfolio Value: ₹10000.0.

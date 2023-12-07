@@ -9,11 +9,12 @@ ACTION_MAP = {0: "HOLD", 1: "BUY", 2: "SELL"}
 class StockTradingEnv(gym.Env):
     """
     Observations
-        [Close_Price, Available_Amount, Shares_Holdings, Buy_Price]
-        Close_Price -
+        Close_Price - Past 40 Prices
         Available_Amount -
         Shares_Holdings -
         Buy_Price -
+        Profit - 0
+        Portfolio - 0
     Actions
         [HOLD, BUY, SELL]
         [0, 1, 2]
@@ -30,7 +31,7 @@ class StockTradingEnv(gym.Env):
         self.observation_space = Box(
             low=-np.inf,
             high=np.inf,
-            shape=(40 + 3,),
+            shape=(40 + 5,),
             dtype=np.float32,
         )
         self.action_space = Discrete(3)
@@ -55,6 +56,8 @@ class StockTradingEnv(gym.Env):
         self.bad_sell_counter = 0
 
         self.holds_with_no_shares_counter = 0
+        self.bad_holds_with_no_shares_counter = 0
+        self.good_holds_with_no_shares_counter = 0
 
         self.good_hold_profit = 0
         self.good_sell_profit = 0
@@ -78,12 +81,18 @@ class StockTradingEnv(gym.Env):
         self.bad_moves = 0
         self.track_portfolio = []
 
-        close_price = self.close_prices[self.counter]
+        past_n_prices = self.close_prices[self.counter]
+        close_price = past_n_prices[-1]
         available_amount = 10_000
         shares_holding = 0
         buy_price = 0
+        profit = 0
+        portfolio_value = available_amount
         self.state = np.concatenate(
-            (close_price, np.array((available_amount, shares_holding, buy_price))),
+            (
+                past_n_prices,
+                np.array((available_amount, shares_holding, buy_price, profit, portfolio_value)),
+            ),
             dtype=np.float32,
         )
         return self.state, {}
@@ -94,17 +103,24 @@ class StockTradingEnv(gym.Env):
         shares_bought = 0
         shares_sold = 0
         truncated = False
-        close_price = self.state[-4]
-        available_amount = self.state[-3]
-        shares_holding = self.state[-2]
-        buy_price = self.state[-1]
-        description = ""
+        past_n_prices = self.state[:-5]
+        close_price = past_n_prices[-1]
+        available_amount = self.state[-5]
+        shares_holding = self.state[-4]
+        buy_price = self.state[-3]
+        profit = self.state[-2]
+        portfolio_value = self.state[-1]
+
+
+        min_past_n_prices = min(past_n_prices)
+        max_past_n_prices = max(past_n_prices)
+        average_past_n_prices = sum(past_n_prices) / len(past_n_prices)
+        percentage_below_average = 1
+        holding_threshold = average_past_n_prices * (1 - percentage_below_average / 100)
 
         predicted_action = ACTION_MAP[action]
-        starting_portfolio_value = close_price * shares_holding + available_amount
 
-
-        # all wrong scenarios
+        # Attempting to buy without sufficient funds.
         if predicted_action == "BUY" and close_price > available_amount:
             reward -= 50_000
             truncated = True
@@ -116,6 +132,7 @@ class StockTradingEnv(gym.Env):
                 f"Available Funds: ₹{available_amount}"
             )
 
+        # Attempting to sell when no shares are held.
         elif predicted_action == "SELL" and shares_holding == 0:
             reward -= 50_000
             truncated = True
@@ -123,22 +140,37 @@ class StockTradingEnv(gym.Env):
             description = (
                 f"[!] Transaction #{self.counter}: Sale Denied. "
                 f"Reason: Insufficient Shares. "
-                f"Attempted to Sell at Price: ₹{close_price} "
-                f"Available Shares for Sale: {shares_holding}"
+                f"Attempted to Sell at Price: ₹{close_price}."
             )
-        
-        elif predicted_action == "SELL" and shares_holding > 0 and self.bad_sell_counter > 3:
-            reward -= 50_000
-            truncated = True
-            self.wrong_trade += 1
-            description = (
-                f"[!] Transaction #{self.counter}: Keeps Selling at Loss. "
-                f"Reason: Occured Loss {self.bad_sell_counter} times."
-                f"Attempted to Sell at Price: ₹{close_price} "
-                f"Available Shares for Sale: {shares_holding}"
-            )
-        
-        # elif predicted_action == "HOLD" and self.bad_hold_streak > 10:
+
+        # Holding when there are no shares and a good buying opportunity is present.
+        # elif (
+        #     predicted_action == "HOLD"
+        #     and shares_holding == 0
+        #     and min_past_n_prices > close_price
+        # ):
+        #     reward -= 50_000
+        #     truncated = True
+        #     self.wrong_trade += 1
+        #     description = (
+        #         f"[!] Transaction #{self.counter}: Missed Opportunity. "
+        #         f"Reason: Good Buying Opportunity Missed While Holding No Shares. "
+        #         f"Close Price: ₹{close_price} was within ₹{lower_bound} - ₹{upper_bound}, "
+        #         f"indicative of a potential buy."
+        #     )
+
+        # elif predicted_action == "SELL" and shares_holding > 0 and self.bad_sell_counter > 3:
+        #     reward -= 50_000
+        #     truncated = True
+        #     self.wrong_trade += 1
+        #     description = (
+        #         f"[!] Transaction #{self.counter}: Keeps Selling at Loss. "
+        #         f"Reason: Occured Loss {self.bad_sell_counter} times."
+        #         f"Attempted to Sell at Price: ₹{close_price} "
+        #         f"Available Shares for Sale: {shares_holding}"
+        #     )
+
+        # elif predicted_action == "HOLD" and (max_past_n_prices - min_past_n_prices) > 15:
         #     reward -= 50_000
         #     truncated = True
         #     self.wrong_trade += 1
@@ -146,8 +178,8 @@ class StockTradingEnv(gym.Env):
         #     loss = buy_price - current_holdings
 
         #     description = (
-        #         f"[!] Transaction #{self.counter}: Bad Hold Steak. "
-        #         f"Reason: {self.bad_hold_streak} consecutive bad holds. "
+        #         f"[!] Transaction #{self.counter}: Missed Opportunity. "
+        #         f"Reason: Could have bought at ₹{min_past_n_prices} and sold at ₹{max_past_n_prices}. "
         #         f"Shares Held: {shares_holding} "
         #         f"Purchase Price:₹{buy_price:.2f} "
         #         f"Current Price: ₹{current_holdings:.2f} "
@@ -169,139 +201,221 @@ class StockTradingEnv(gym.Env):
         #         f"Loss: {loss}"
         #     )
 
-        else:
+        elif (
+            predicted_action == "BUY"
+            and close_price <= available_amount
+            and close_price < average_past_n_prices
+        ):
+            shares_bought = available_amount // close_price
+            buy_price = close_price
+            shares_holding += shares_bought
+            available_amount -= buy_price * shares_bought
+            reward += close_price - average_past_n_prices
+            description = (
+                f"[+] Transaction #{self.counter}: Purchase Successful. "
+                f"Shares Acquired: {shares_bought}. "
+                f"Purchase Price per Share: ₹{close_price:.2f}. "
+                f"Total Buying Price: ₹{buy_price}. "
+                f"Available Amount: ₹{available_amount}. "
+                f"Waiting Period Before Purchase: {self.waiting_streak} intervals. "
+                f"Reward Earned: ₹{reward} (Good). "
+                f"Average Price {average_past_n_prices} is less than Buying Price {buy_price} "
+                f"Portfolio Value: ₹{portfolio_value}"
+            )
+            self.buy_price_index = self.counter
+            self.buy_counter += 1
+            self.good_hold_streak = 0
+            self.bad_hold_streak = 0
+            self.waiting_streak = 0
             self.correct_trade += 1
+            self.good_buy_counter += 1
 
+        elif (
+            predicted_action == "BUY"
+            and close_price <= available_amount
+            and close_price >= average_past_n_prices
+        ):
+            shares_bought = available_amount // close_price
+            buy_price = close_price
+            shares_holding += shares_bought
+            available_amount -= buy_price * shares_bought
+            reward += close_price - average_past_n_prices
+            description = (
+                f"[+] Transaction #{self.counter}: Purchase Successful. "
+                f"Shares Acquired: {shares_bought}. "
+                f"Purchase Price per Share: ₹{close_price:.2f}. "
+                f"Total Buying Price: ₹{buy_price}. "
+                f"Available Amount: ₹{available_amount}. "
+                f"Waiting Period Before Purchase: {self.waiting_streak} intervals. "
+                f"Reward Earned: ₹{reward} (BAD). "
+                f"Average Price {average_past_n_prices} is more than Buying Price {buy_price} "
+                f"Portfolio Value: ₹{portfolio_value}"
+            )
+            self.buy_price_index = self.counter
+            self.buy_counter += 1
+            self.good_hold_streak = 0
+            self.bad_hold_streak = 0
+            self.waiting_streak = 0
+            self.correct_trade += 1
+            self.bad_buy_counter += 1
 
-            if predicted_action == "BUY":
-                shares_bought = available_amount // close_price
-                buy_price = close_price * shares_bought
-                shares_holding += shares_bought
-                available_amount -= buy_price
-                reward += 0.01
-                pv = shares_bought * close_price + available_amount
-                description = (
-                    f"[+] Transaction #{self.counter}: Purchase Successful. "
-                    f"Shares Acquired: {shares_bought}. "
-                    f"Purchase Price per Share: ₹{close_price:.2f}. "
-                    f"Total Buying Price: ₹{buy_price}. "
-                    f"Available Amount: ₹{available_amount}. "
-                    f"Waiting Period Before Purchase: {self.waiting_streak} intervals. "
-                    f"Reward Earned: ₹{reward}. "
-                    f"Portfolio Value: ₹{pv}"
-                )
-                self.buy_price_index = self.counter
-                self.buy_counter += 1
-                self.good_hold_streak = 0
-                self.bad_hold_streak = 0
-                self.waiting_streak = 0
-            
+        elif (
+            predicted_action == "SELL"
+            and shares_holding > 0
+            and close_price > buy_price
+        ):
+            shares_sold = shares_holding
+            sell_price = close_price * shares_holding
+            available_amount += sell_price
+            profit = sell_price - buy_price * shares_holding
+            reward += profit
+            portfolio_value = available_amount
 
-            elif predicted_action == "SELL":
-                shares_sold = shares_holding
-                sell_price = close_price * shares_holding
-                available_amount += sell_price
-                profit = sell_price - buy_price
-                reward += profit
-                pv = sell_price + available_amount
+            description = (
+                f"[+] Transaction #{self.counter}: Profitable Sale Executed. "
+                f"Shares Sold: {shares_sold}. "
+                f"Purchase Price per Share: ₹{buy_price}. "
+                f"Sale Price per Share: ₹{close_price}. "
+                f"Profit Earned: ₹{profit}. "
+                f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
+                f"Holding Performance2: Good Hold - {self.good_hold_counter}, Bad Hold - {self.bad_hold_counter}. "
+                f"Reward Earned: ₹{reward}. "
+                f"Portfolio Value: ₹{portfolio_value}."
+            )
 
-                if profit > 50:
-                    description = (
-                        f"[+] Transaction #{self.counter}: Profitable Sale Executed. "
-                        f"Shares Sold: {shares_sold}. "
-                        f"Purchase Price per Share: ₹{buy_price}. "
-                        f"Sale Price per Share: ₹{sell_price}. "
-                        f"Profit Earned: ₹{profit}. "
-                        f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
-                        f"Holding Performance2: Good Hold - {self.good_hold_counter}, Bad Hold - {self.bad_hold_counter}. "
-                        f"Reward Earned: ₹{reward}. "
-                        f"Portfolio Value: ₹{pv}."
-                    )
+            self.good_sell_counter += 1
+            self.good_sell_profit += profit
+            shares_holding = 0
+            buy_price = 0
+            self.good_hold_streak = 0
+            self.bad_hold_streak = 0
+            self.buy_price_index = -1
 
-                    self.good_sell_counter += 1
-                    self.good_sell_profit += profit
+        elif (
+            predicted_action == "SELL"
+            and shares_holding > 0
+            and close_price <= buy_price
+        ):
+            shares_sold = shares_holding
+            sell_price = close_price * shares_holding
+            available_amount += sell_price
+            profit = sell_price - buy_price * shares_holding
+            reward += profit
+            portfolio_value = available_amount
 
-                else:
-                    # reward += profit
-                    description = (
-                        f"[+] Transaction #{self.counter}: Sale Executed with Loss. "
-                        f"Shares Sold: {shares_sold}. "
-                        f"Purchase Price per Share: ₹{buy_price}. "
-                        f"Sale Price per Share: ₹{sell_price}. "
-                        f"Profit Earned: ₹{profit} (Negative). "
-                        f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
-                        f"Holding Performance2: Good Hold - {self.good_hold_counter}, Bad Hold - {self.bad_hold_counter}. "
-                        f"Reward Earned: ₹{reward}. "
-                        f"Portfolio Value: ₹{pv}."
-                    )
-                    self.bad_sell_counter += 1
-                    self.bad_sell_loss += profit
-                    
-                shares_holding = 0
-                buy_price = 0
-                self.good_hold_streak = 0
-                self.bad_hold_streak = 0
-                self.buy_price_index = -1
+            description = (
+                f"[+] Transaction #{self.counter}: Sale Executed with Loss. "
+                f"Shares Sold: {shares_sold}. "
+                f"Purchase Price per Share: ₹{buy_price}. "
+                f"Sale Price per Share: ₹{close_price}. "
+                f"Loss Earned: ₹{profit}. "
+                f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
+                f"Holding Performance2: Good Hold - {self.good_hold_counter}, Bad Hold - {self.bad_hold_counter}. "
+                f"Reward Earned: ₹{reward}. "
+                f"Portfolio Value: ₹{portfolio_value}."
+            )
 
+            self.bad_sell_counter += 1
+            self.bad_sell_loss += profit
+            shares_holding = 0
+            buy_price = 0
+            self.good_hold_streak = 0
+            self.bad_hold_streak = 0
+            self.buy_price_index = -1
 
-            elif predicted_action == "HOLD":
-                pv = shares_holding * close_price + available_amount
+        elif (
+            predicted_action == "HOLD"
+            and shares_holding == 0
+            and (close_price < holding_threshold)
+        ):
+            reward += close_price - holding_threshold
+            description = (
+                f"[·] Transaction #{self.counter}: Missed Buying Opportunity. "
+                f"Duration of Waiting: {self.waiting_streak} intervals. "
+                f"Current Share Price: ₹{close_price:.2f}. "
+                f"Holding Threshold: ₹{holding_threshold}. "
+                f"Average Price: ₹{average_past_n_prices}. "
+                f"Reward Accumulated: ₹{reward}. "
+                f"Min Past Price: ₹{min_past_n_prices}. "
+                f"Max Past Price: ₹{max_past_n_prices}. "
+                f"Portfolio Value: ₹{portfolio_value}."
+            )
+            self.waiting_streak += 1
+            self.holds_with_no_shares_counter += 1
+            self.bad_holds_with_no_shares_counter += 1
 
-                if shares_holding == 0:
-                    reward += 0.01
-                    description = (
-                        f"[·] Transaction #{self.counter}: Waiting. "
-                        f"Duration of Waiting: {self.waiting_streak} intervals. "
-                        f"Current Share Price: ₹{close_price:.2f}. "
-                        f"Reward Accumulated: ₹{reward}. "
-                        f"Portfolio Value: ₹{pv}."
-                    )
-                    self.waiting_streak += 1
-                    self.holds_with_no_shares_counter += 1
+        elif (
+            predicted_action == "HOLD"
+            and shares_holding == 0
+            and (close_price >= holding_threshold)
+        ):
+            reward += close_price - holding_threshold
+            description = (
+                f"[·] Transaction #{self.counter}: Correct decision to HOLD. "
+                f"Duration of Waiting: {self.waiting_streak} intervals. "
+                f"Current Share Price: ₹{close_price:.2f}. "
+                f"Holding Threshold: ₹{holding_threshold}. "
+                f"Average Price: ₹{average_past_n_prices}. "
+                f"Reward Accumulated: ₹{reward}. "
+                f"Min Past Price: ₹{min_past_n_prices}. "
+                f"Max Past Price: ₹{max_past_n_prices}. "
+                f"Portfolio Value: ₹{portfolio_value}."
+            )
+            self.waiting_streak += 1
+            self.holds_with_no_shares_counter += 1
+            self.good_holds_with_no_shares_counter += 1
 
-                else:
-                    profit = (close_price * shares_holding) - buy_price
-                    reward += profit
-                    
-                    if profit > 0:
-                        description = (
-                            f"[+] Transaction #{self.counter}: Profitable Holding. "
-                            f"Shares Held: {shares_holding}. "
-                            f"Purchase Price per Share: ₹{buy_price:.2f}. "
-                            f"Current Share Price: ₹{close_price:.2f}. "
-                            f"Unrealized Profit: ₹{profit}. "
-                            f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
-                            f"Holding Performance2: Good Hold - {self.good_hold_counter}, Bad Hold - {self.bad_hold_counter}. "
-                            f"Reward Earned: ₹{reward}. "
-                            f"Portfolio Value: ₹{pv}."
-                        )
-                        self.good_hold_counter += 1
-                        self.good_hold_profit += profit
-                        self.good_hold_streak += 1
-                        self.bad_hold_streak = 0
-                    
-                    else:
-                        # reward *= (self.bad_hold_streak * 0.1)
-                        # reward += profit
-                        description = (
-                            f"[+] Transaction #{self.counter}: Unprofitable Holding. "
-                            f"Shares Held: {shares_holding}. "
-                            f"Purchase Price per Share: ₹{buy_price:.2f}. "
-                            f"Current Share Price: ₹{close_price:.2f}. "
-                            f"Unrealized Loss: ₹{profit} (Negative). "
-                            f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
-                            f"Holding Performance2: Good Hold - {self.good_hold_counter}, Bad Hold - {self.bad_hold_counter}. "
-                            f"Reward Earned: ₹{reward}. "
-                            f"Portfolio Value: ₹{pv}."
-                        )
-                        self.bad_hold_counter += 1
-                        self.bad_hold_loss += profit
-                        self.bad_hold_streak += 1
-                        self.good_hold_streak = 0
+        elif (
+            predicted_action == "HOLD"
+            and shares_holding > 0
+            and close_price >= buy_price
+        ):
+            profit = (close_price - buy_price) * shares_holding
+            reward += profit
+            description = (
+                f"[+] Transaction #{self.counter}: Profitable Holding. "
+                f"Shares Held: {shares_holding}. "
+                f"Purchase Price per Share: ₹{buy_price:.2f}. "
+                f"Current Share Price: ₹{close_price:.2f}. "
+                f"Unrealized Profit: ₹{profit}. "
+                f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
+                f"Holding Performance2: Good Hold - {self.good_hold_counter}, Bad Hold - {self.bad_hold_counter}. "
+                f"Reward Earned: ₹{reward}. "
+                f"Portfolio Value: ₹{portfolio_value}."
+            )
+            self.good_hold_counter += 1
+            self.good_hold_profit += profit
+            self.good_hold_streak += 1
+            self.bad_hold_streak = 0
+            self.hold_counter += 1
+            self.waiting_streak = 0
 
-                    self.hold_counter += 1
-                    self.waiting_streak = 0
-
+        elif (
+            predicted_action == "HOLD"
+            and shares_holding > 0
+            and close_price < buy_price
+        ):
+            profit = (close_price - buy_price) * shares_holding
+            reward += profit
+            description = (
+                f"[+] Transaction #{self.counter}: Unprofitable Holding. "
+                f"Shares Held: {shares_holding}. "
+                f"Purchase Price per Share: ₹{buy_price:.2f}. "
+                f"Current Share Price: ₹{close_price:.2f}. "
+                f"Unrealized Loss: ₹{profit} (Negative). "
+                f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
+                f"Holding Performance2: Good Hold - {self.good_hold_counter}, Bad Hold - {self.bad_hold_counter}. "
+                f"Reward Earned: ₹{reward}. "
+                f"Portfolio Value: ₹{portfolio_value}."
+            )
+            self.bad_hold_counter += 1
+            self.bad_hold_loss += profit
+            self.bad_hold_streak += 1
+            self.good_hold_streak = 0
+            self.hold_counter += 1
+            self.waiting_streak = 0
+        else:
+            ...
 
         if profit > 0:
             self.good_profit += profit
@@ -349,7 +463,6 @@ class StockTradingEnv(gym.Env):
         combined_hold_profit = self.good_hold_profit + self.bad_hold_loss
         combined_sell_profit = self.good_sell_profit + self.bad_sell_loss
 
-        portfolio_value = shares_holding * close_price + available_amount
         info = {
             "seed": self.seed,
             "counter": self.counter,
@@ -376,6 +489,8 @@ class StockTradingEnv(gym.Env):
             "bad_sell_counter": self.bad_sell_counter,
             "bad_buy_counter": self.bad_buy_counter,
             "hold_with_no_shares_counter": self.holds_with_no_shares_counter,
+            "bad_holds_with_no_shares_counter": self.bad_holds_with_no_shares_counter,
+            "good_holds_with_no_shares_counter": self.good_holds_with_no_shares_counter,
             "good_hold_streak": self.good_hold_streak,
             "bad_hold_streak": self.bad_hold_streak,
             "waiting_streak": self.waiting_streak,
@@ -407,9 +522,12 @@ class StockTradingEnv(gym.Env):
             return self.state, float(reward), done, truncated, info
 
         self.counter += 1
-        close_price = self.close_prices[self.counter]
+        past_n_prices = self.close_prices[self.counter]
         self.state = np.concatenate(
-            (close_price, np.array((available_amount, shares_holding, buy_price))),
+            (
+                past_n_prices,
+                np.array((available_amount, shares_holding, buy_price, profit, portfolio_value)),
+            ),
             dtype=np.float32,
         )
         return self.state, float(reward), done, truncated, info

@@ -13,6 +13,7 @@ import numpy as np
 
 TICKER = "SBIN.NS"
 EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
+EVAL_FILE = Path("datasets") / f"{TICKER}_train"
 df = pl.read_parquet(EVAL_FILE)
 EVAL_CLOSE_PRICES = (
     df.with_columns(index=pl.int_range(0, end=df.shape[0], eager=True))
@@ -52,6 +53,8 @@ while True:
     )
     obs, rewards, dones, infos = eval_vec_env.step(actions)
     episode_starts[0] = dones[0]
+    # print(infos[0])
     print(infos[0]["portfolio_value"], infos[0]["description"])
+    print()
     if dones[0]:
         break
