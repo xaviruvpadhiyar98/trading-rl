@@ -61,7 +61,7 @@ def main():
         )
 
     model.learn(
-        total_timesteps=5_000_000,
+        total_timesteps=20_000_000,
         progress_bar=True,
         reset_num_timesteps=reset_num_timesteps,
         callback=EvalCallback(model_name=model_name),

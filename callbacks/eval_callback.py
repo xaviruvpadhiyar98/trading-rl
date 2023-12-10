@@ -66,10 +66,10 @@ class EvalCallback(BaseCallback):
             obs, reward, done, truncated, info = env.step(actions.item())
             infos.append(info)
             if done or truncated:
-                if info['portfolio_value'] >= 10000:
+                if info['portfolio_value'] >= 15000:
                     dir = Path(f"logs/{self.log_name}/")
                     dir.mkdir(parents=True, exist_ok=True)
-                    (dir / str(self.num_timesteps)).write_text(
+                    (dir / f"{self.num_timesteps}-{info['portfolio_value']}").write_text(
                         json.dumps(infos, default=str, indent=4)
                     )
 

@@ -121,19 +121,30 @@ class StockTradingEnv(gym.Env):
         max_price,
     ):
         description = (
-            f"[+] Transaction #{self.counter}: {short_desc}. <br>"
+            f"[+] {self.predicted_action} Transaction #{self.counter}: {short_desc}. <br>"
             f"Min Price: {min_price:.2f}. <br> "
             f"Close Price: {close_price:.2f}. <br> "
             f"Max Price: {max_price:.2f}. <br> "
             f"Reward: {reward}. <br> "
+            f"Reward Tracker: {self.reward_tracker}. <br> "
             f"Shares: {shares_holding}. <br> "
             f"Available Amount: {available_amount}. <br> "
             f"Portfolio Value: {portfolio_value}. <br> "
             f"Buy Counters: {self.buy_counter}. <br> "
+            f"&emsp; Good Buy Counters: {self.good_buy_counter}. <br> "
+            f"&emsp; BAD Buy Counters: {self.bad_buy_counter}. <br> "
             f"Sell Counters: {self.sell_counter}. <br> "
+            f"&emsp; GOOD SELL Counters: {self.good_sell_counter}. <br> "
+            f"&emsp; BAD SELL Counters: {self.bad_sell_counter}. <br> "
             f"Hold Counters: {self.hold_counter}. <br> "
+            f"&emsp; GOOD HOLD Counters: {self.good_hold_counter}. <br> "
+            f"&emsp; BAD HOLD Counters: {self.bad_hold_counter}. <br> "
             f"Waiting Period Before Purchase: {self.waiting_streak} intervals. <br> "
+            f"Good Streak: {self.good_hold_streak}. <br>"
+            f"Bad Streak: {self.bad_hold_streak}. <br>"
             f"Holding with No Shares Counter: {self.holds_with_no_shares_counter} intervals. <br> "
+            f"&emsp; GOOD HOLD with No Shares Counters: {self.good_holds_with_no_shares_counter}. <br> "
+            f"&emsp; BAD HOLD with No Shares Counters: {self.bad_holds_with_no_shares_counter}. <br> "
             f"Buying Price: ₹{buy_price}. <br> "
         )
         return description
@@ -179,6 +190,7 @@ class StockTradingEnv(gym.Env):
         )
 
         predicted_action = ACTION_MAP[action]
+        self.predicted_action = predicted_action
 
         # Attempting to buy without sufficient funds.
         if predicted_action == "BUY" and close_price > available_amount:
@@ -228,22 +240,22 @@ class StockTradingEnv(gym.Env):
             # )
 
         # Attempting to sell when no shares are held.
-        elif predicted_action == "HOLD" and self.waiting_streak > 100:
-            reward -= 50_000
-            truncated = True
-            self.wrong_trade += 1
-            short_desc = "Keeps HOLDING without shares"
-            description = self.log(
-                short_desc,
-                shares_holding,
-                close_price,
-                available_amount,
-                portfolio_value,
-                reward,
-                buy_price,
-                min_price,
-                max_price,
-            )
+        # elif predicted_action == "HOLD" and self.waiting_streak > 100:
+        #     reward -= 50_000
+        #     truncated = True
+        #     self.wrong_trade += 1
+        #     short_desc = "Keeps HOLDING without shares"
+        #     description = self.log(
+        #         short_desc,
+        #         shares_holding,
+        #         close_price,
+        #         available_amount,
+        #         portfolio_value,
+        #         reward,
+        #         buy_price,
+        #         min_price,
+        #         max_price,
+        #     )
             # description = (
             #     f"[!] Transaction #{self.counter}: Waited too many times. "
             #     f"Waited {self.waiting_streak}"
@@ -251,22 +263,22 @@ class StockTradingEnv(gym.Env):
             #     f"BAD Waiting: {self.bad_holds_with_no_shares_counter}."
             # )
         # Attempting to sell when no shares are held.
-        elif predicted_action == "HOLD" and self.bad_hold_counter > 10:
-            reward -= 50_000
-            truncated = True
-            self.wrong_trade += 1
-            short_desc = "BAD HOLD COUNTER > 10"
-            description = self.log(
-                short_desc,
-                shares_holding,
-                close_price,
-                available_amount,
-                portfolio_value,
-                reward,
-                buy_price,
-                min_price,
-                max_price,
-            )
+        # elif predicted_action == "HOLD" and self.bad_hold_counter > 10:
+        #     reward -= 50_000
+        #     truncated = True
+        #     self.wrong_trade += 1
+        #     short_desc = "BAD HOLD COUNTER > 10"
+        #     description = self.log(
+        #         short_desc,
+        #         shares_holding,
+        #         close_price,
+        #         available_amount,
+        #         portfolio_value,
+        #         reward,
+        #         buy_price,
+        #         min_price,
+        #         max_price,
+        #     )
             # description = (
             #     f"[!] Transaction #{self.counter}: BAD HOLD more than 10 times "
             #     f"Waited {self.waiting_streak}"
