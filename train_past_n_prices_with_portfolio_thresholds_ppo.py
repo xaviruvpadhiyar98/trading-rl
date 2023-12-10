@@ -6,7 +6,7 @@ from stable_baselines3.common.env_checker import check_env
 
 from callbacks.eval_callback import EvalCallback
 from common.make_vec_env import make_vec_env
-from envs.single_stock_trading_past_n_price_env import StockTradingEnv
+from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
 
 TICKER = "SBIN.NS"
 TRAIN_FILE = Path("datasets") / f"{TICKER}_train"
@@ -30,7 +30,7 @@ CLOSE_PRICES = (
 
 
 def main():
-    model_name = "single_stock_trading_past_n_prices_ppo"
+    model_name = "single_stock_trading_past_n_price_portfolio_reward_ppo"
     num_envs = 8
     check_env(StockTradingEnv(CLOSE_PRICES, seed=0))
     vec_env = make_vec_env(
@@ -64,7 +64,7 @@ def main():
         total_timesteps=10_000_000,
         progress_bar=True,
         reset_num_timesteps=reset_num_timesteps,
-        callback=EvalCallback(model_name="ppo"),
+        callback=EvalCallback(model_name=model_name),
         tb_log_name=model_name,
     )
     model.save("trained_models/" + model_name)

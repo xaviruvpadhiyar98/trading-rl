@@ -7,7 +7,8 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 
 from common.make_vec_env import make_vec_env
-from envs.single_stock_trading_past_n_price_env import StockTradingEnv
+# from envs.single_stock_trading_past_n_price_env import StockTradingEnv
+from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
 
 TICKER = "SBIN.NS"
 EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
@@ -30,7 +31,10 @@ class EvalCallback(BaseCallback):
     def __init__(self, log_counter=64000, model_name="a2c"):
         super().__init__()
         self.log_counter = log_counter
-        self.model_name = model_name
+        self.model_name = model_name.split("_")[-1]
+        self.log_name = model_name
+
+
 
     def _on_training_start(self) -> None:
         self.test_and_log()
@@ -92,8 +96,8 @@ class EvalCallback(BaseCallback):
             else:
                 self.logger.record(f"commons/{k}", v)
 
-            if k == "portfolio_value" and v > 18000:
-                dir = Path(f"logs/{self.model_name}/")
+            if k == "portfolio_value" and v > 14000:
+                dir = Path(f"logs/{self.log_name}/")
                 dir.mkdir(parents=True, exist_ok=True)
                 (dir / str(self.num_timesteps)).write_text(
                     json.dumps(best_info, default=str, indent=4)

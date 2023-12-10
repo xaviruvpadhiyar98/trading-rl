@@ -91,7 +91,15 @@ class StockTradingEnv(gym.Env):
         self.state = np.concatenate(
             (
                 past_n_prices,
-                np.array((available_amount, shares_holding, buy_price, profit, portfolio_value)),
+                np.array(
+                    (
+                        available_amount,
+                        shares_holding,
+                        buy_price,
+                        profit,
+                        portfolio_value,
+                    )
+                ),
             ),
             dtype=np.float32,
         )
@@ -111,12 +119,34 @@ class StockTradingEnv(gym.Env):
         profit = self.state[-2]
         portfolio_value = self.state[-1]
 
+        min_price = min(past_n_prices)
+        max_price = max(past_n_prices)
+        average_price = sum(past_n_prices) / len(past_n_prices)
 
-        min_past_n_prices = min(past_n_prices)
-        max_past_n_prices = max(past_n_prices)
-        average_past_n_prices = sum(past_n_prices) / len(past_n_prices)
-        percentage_below_average = 1
-        holding_threshold = average_past_n_prices * (1 - percentage_below_average / 100)
+        percentage_hold_threshold = 10
+        percentage_buy_threshold = 5
+        percentage_sell_threshold = 5
+
+        percentage_distance_from_min = (
+            (close_price - min_price) / (max_price - min_price)
+        ) * 100
+        percentage_distance_from_max = 100 - percentage_distance_from_min
+        closer_to_min_price_with_threshold = (
+            percentage_buy_threshold > percentage_distance_from_min
+        )
+
+        buy_range_value = min_price * (percentage_buy_threshold / 100)
+        sell_range_value = max_price * (percentage_sell_threshold / 100)
+        hold_range_value = average_price * (percentage_hold_threshold / 100)
+
+        is_near_min_good_buy = (
+            min_price - buy_range_value <= close_price <= min_price + buy_range_value
+        )
+
+        # is_near_max = max_price - sell_range_value <= close_price <= max_price + sell_range_value
+        # is_near_hold = max_past_n_prices - hold_range_value <= close_price <= max_past_n_prices + hold_range_value
+
+        # holding_threshold = average_past_n_prices * (1 - percentage_below_average / 100)
 
         predicted_action = ACTION_MAP[action]
 
@@ -204,22 +234,23 @@ class StockTradingEnv(gym.Env):
         elif (
             predicted_action == "BUY"
             and close_price <= available_amount
-            and close_price < average_past_n_prices
+            and closer_to_min_price_with_threshold
         ):
             shares_bought = available_amount // close_price
             buy_price = close_price
             shares_holding += shares_bought
             available_amount -= buy_price * shares_bought
-            reward += close_price - average_past_n_prices
+            reward += percentage_distance_from_max
             description = (
-                f"[+] Transaction #{self.counter}: Purchase Successful. "
+                f"[+] Transaction #{self.counter}: Good Purchase Successful. "
                 f"Shares Acquired: {shares_bought}. "
                 f"Purchase Price per Share: ₹{close_price:.2f}. "
                 f"Total Buying Price: ₹{buy_price}. "
                 f"Available Amount: ₹{available_amount}. "
                 f"Waiting Period Before Purchase: {self.waiting_streak} intervals. "
                 f"Reward Earned: ₹{reward} (Good). "
-                f"Average Price {average_past_n_prices} is less than Buying Price {buy_price} "
+                f"Average Price {average_price} is less than Buying Price {buy_price} "
+                f"Minimum Price {min_price} Maximum Price {max_price} "
                 f"Portfolio Value: ₹{portfolio_value}"
             )
             self.buy_price_index = self.counter
@@ -233,22 +264,23 @@ class StockTradingEnv(gym.Env):
         elif (
             predicted_action == "BUY"
             and close_price <= available_amount
-            and close_price >= average_past_n_prices
+            and not closer_to_min_price_with_threshold
         ):
             shares_bought = available_amount // close_price
             buy_price = close_price
             shares_holding += shares_bought
             available_amount -= buy_price * shares_bought
-            reward += close_price - average_past_n_prices
+            reward += min_price - close_price
             description = (
-                f"[+] Transaction #{self.counter}: Purchase Successful. "
+                f"[+] Transaction #{self.counter}: Bad Purchase Successful. "
                 f"Shares Acquired: {shares_bought}. "
                 f"Purchase Price per Share: ₹{close_price:.2f}. "
                 f"Total Buying Price: ₹{buy_price}. "
                 f"Available Amount: ₹{available_amount}. "
                 f"Waiting Period Before Purchase: {self.waiting_streak} intervals. "
                 f"Reward Earned: ₹{reward} (BAD). "
-                f"Average Price {average_past_n_prices} is more than Buying Price {buy_price} "
+                f"Average Price {average_price} is less than Buying Price {buy_price} "
+                f"Minimum Price {min_price} Maximum Price {max_price} "
                 f"Portfolio Value: ₹{portfolio_value}"
             )
             self.buy_price_index = self.counter
@@ -284,6 +316,7 @@ class StockTradingEnv(gym.Env):
             )
 
             self.good_sell_counter += 1
+            self.sell_counter += 1
             self.good_sell_profit += profit
             shares_holding = 0
             buy_price = 0
@@ -316,6 +349,7 @@ class StockTradingEnv(gym.Env):
             )
 
             self.bad_sell_counter += 1
+            self.sell_counter += 1
             self.bad_sell_loss += profit
             shares_holding = 0
             buy_price = 0
@@ -326,18 +360,20 @@ class StockTradingEnv(gym.Env):
         elif (
             predicted_action == "HOLD"
             and shares_holding == 0
-            and (close_price < holding_threshold)
+            and closer_to_min_price_with_threshold
         ):
-            reward += close_price - holding_threshold
+            # reward += close_price - holding_threshold
+            # reward *= 1000
+            reward += min_price - close_price
+            if reward < 20:
+                reward = -600
             description = (
                 f"[·] Transaction #{self.counter}: Missed Buying Opportunity. "
                 f"Duration of Waiting: {self.waiting_streak} intervals. "
                 f"Current Share Price: ₹{close_price:.2f}. "
-                f"Holding Threshold: ₹{holding_threshold}. "
-                f"Average Price: ₹{average_past_n_prices}. "
+                f"Average Price {average_price} is less than Buying Price {buy_price} "
+                f"Minimum Price {min_price} Maximum Price {max_price} "
                 f"Reward Accumulated: ₹{reward}. "
-                f"Min Past Price: ₹{min_past_n_prices}. "
-                f"Max Past Price: ₹{max_past_n_prices}. "
                 f"Portfolio Value: ₹{portfolio_value}."
             )
             self.waiting_streak += 1
@@ -347,18 +383,16 @@ class StockTradingEnv(gym.Env):
         elif (
             predicted_action == "HOLD"
             and shares_holding == 0
-            and (close_price >= holding_threshold)
+            and not closer_to_min_price_with_threshold
         ):
-            reward += close_price - holding_threshold
+            reward += percentage_distance_from_max
             description = (
                 f"[·] Transaction #{self.counter}: Correct decision to HOLD. "
                 f"Duration of Waiting: {self.waiting_streak} intervals. "
                 f"Current Share Price: ₹{close_price:.2f}. "
-                f"Holding Threshold: ₹{holding_threshold}. "
-                f"Average Price: ₹{average_past_n_prices}. "
+                f"Average Price {average_price} is less than Buying Price {buy_price} "
+                f"Minimum Price {min_price} Maximum Price {max_price} "
                 f"Reward Accumulated: ₹{reward}. "
-                f"Min Past Price: ₹{min_past_n_prices}. "
-                f"Max Past Price: ₹{max_past_n_prices}. "
                 f"Portfolio Value: ₹{portfolio_value}."
             )
             self.waiting_streak += 1
@@ -372,6 +406,7 @@ class StockTradingEnv(gym.Env):
         ):
             profit = (close_price - buy_price) * shares_holding
             reward += profit
+            portfolio_value = close_price * shares_holding + available_amount
             description = (
                 f"[+] Transaction #{self.counter}: Profitable Holding. "
                 f"Shares Held: {shares_holding}. "
@@ -397,6 +432,8 @@ class StockTradingEnv(gym.Env):
         ):
             profit = (close_price - buy_price) * shares_holding
             reward += profit
+            reward *= 10
+            portfolio_value = close_price * shares_holding + available_amount
             description = (
                 f"[+] Transaction #{self.counter}: Unprofitable Holding. "
                 f"Shares Held: {shares_holding}. "
@@ -526,7 +563,15 @@ class StockTradingEnv(gym.Env):
         self.state = np.concatenate(
             (
                 past_n_prices,
-                np.array((available_amount, shares_holding, buy_price, profit, portfolio_value)),
+                np.array(
+                    (
+                        available_amount,
+                        shares_holding,
+                        buy_price,
+                        profit,
+                        portfolio_value,
+                    )
+                ),
             ),
             dtype=np.float32,
         )
