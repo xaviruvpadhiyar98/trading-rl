@@ -108,6 +108,36 @@ class StockTradingEnv(gym.Env):
         )
         return self.state, {}
 
+    def log(
+        self,
+        short_desc,
+        shares_holding,
+        close_price,
+        available_amount,
+        portfolio_value,
+        reward,
+        buy_price,
+        min_price,
+        max_price,
+    ):
+        description = (
+            f"[+] Transaction #{self.counter}: {short_desc}. <br>"
+            f"Min Price: {min_price:.2f}. <br> "
+            f"Close Price: {close_price:.2f}. <br> "
+            f"Max Price: {max_price:.2f}. <br> "
+            f"Reward: {reward}. <br> "
+            f"Shares: {shares_holding}. <br> "
+            f"Available Amount: {available_amount}. <br> "
+            f"Portfolio Value: {portfolio_value}. <br> "
+            f"Buy Counters: {self.buy_counter}. <br> "
+            f"Sell Counters: {self.sell_counter}. <br> "
+            f"Hold Counters: {self.hold_counter}. <br> "
+            f"Waiting Period Before Purchase: {self.waiting_streak} intervals. <br> "
+            f"Holding with No Shares Counter: {self.holds_with_no_shares_counter} intervals. <br> "
+            f"Buying Price: ₹{buy_price}. <br> "
+        )
+        return description
+
     def step(self, action):
         reward = 0
         profit = 0
@@ -155,35 +185,119 @@ class StockTradingEnv(gym.Env):
             reward -= 50_000
             truncated = True
             self.wrong_trade += 1
-            description = (
-                f"[!] Transaction #{self.counter}: Purchase Denied. "
-                f"Reason: Insufficient Funds. "
-                f"Attempted Purchase Price: ₹{close_price} "
-                f"Available Funds: ₹{available_amount}"
+            short_desc = "BUY without funds"
+            description = self.log(
+                short_desc,
+                shares_holding,
+                close_price,
+                available_amount,
+                portfolio_value,
+                reward,
+                buy_price,
+                min_price,
+                max_price,
             )
+            # description = (
+            #     f"[!] Transaction #{self.counter}: Purchase Denied. "
+            #     f"Reason: Insufficient Funds. "
+            #     f"Attempted Purchase Price: ₹{close_price} "
+            #     f"Available Funds: ₹{available_amount}. "
+            # )
 
         # Attempting to sell when no shares are held.
         elif predicted_action == "SELL" and shares_holding == 0:
             reward -= 50_000
             truncated = True
             self.wrong_trade += 1
-            description = (
-                f"[!] Transaction #{self.counter}: Sale Denied. "
-                f"Reason: Insufficient Shares. "
-                f"Attempted to Sell at Price: ₹{close_price}."
+            short_desc = "SELL without Shares"
+            description = self.log(
+                short_desc,
+                shares_holding,
+                close_price,
+                available_amount,
+                portfolio_value,
+                reward,
+                buy_price,
+                min_price,
+                max_price,
             )
+            # description = (
+            #     f"[!] Transaction #{self.counter}: Sale Denied. "
+            #     f"Reason: Insufficient Shares. "
+            #     f"Attempted to Sell at Price: ₹{close_price}."
+            # )
 
         # Attempting to sell when no shares are held.
         elif predicted_action == "HOLD" and self.waiting_streak > 100:
             reward -= 50_000
             truncated = True
             self.wrong_trade += 1
-            description = (
-                f"[!] Transaction #{self.counter}: Waited too many times. "
-                f"Waited {self.waiting_streak}"
-                f"Good Waiting: {self.good_holds_with_no_shares_counter}. "
-                f"BAD Waiting: {self.bad_holds_with_no_shares_counter}."
+            short_desc = "Keeps HOLDING without shares"
+            description = self.log(
+                short_desc,
+                shares_holding,
+                close_price,
+                available_amount,
+                portfolio_value,
+                reward,
+                buy_price,
+                min_price,
+                max_price,
             )
+            # description = (
+            #     f"[!] Transaction #{self.counter}: Waited too many times. "
+            #     f"Waited {self.waiting_streak}"
+            #     f"Good Waiting: {self.good_holds_with_no_shares_counter}. "
+            #     f"BAD Waiting: {self.bad_holds_with_no_shares_counter}."
+            # )
+        # Attempting to sell when no shares are held.
+        elif predicted_action == "HOLD" and self.bad_hold_counter > 10:
+            reward -= 50_000
+            truncated = True
+            self.wrong_trade += 1
+            short_desc = "BAD HOLD COUNTER > 10"
+            description = self.log(
+                short_desc,
+                shares_holding,
+                close_price,
+                available_amount,
+                portfolio_value,
+                reward,
+                buy_price,
+                min_price,
+                max_price,
+            )
+            # description = (
+            #     f"[!] Transaction #{self.counter}: BAD HOLD more than 10 times "
+            #     f"Waited {self.waiting_streak}"
+            #     f"Good Waiting: {self.good_holds_with_no_shares_counter}. "
+            #     f"BAD Waiting: {self.bad_holds_with_no_shares_counter}."
+            # )
+        # Attempting to sell when no shares are held.
+        elif predicted_action == "SELL" and (
+            self.good_hold_streak < 2 or self.bad_hold_streak < 2
+        ):
+            reward -= 50_000
+            truncated = True
+            self.wrong_trade += 1
+            short_desc = "SELLING DIRECT AFTER BUY"
+            description = self.log(
+                short_desc,
+                shares_holding,
+                close_price,
+                available_amount,
+                portfolio_value,
+                reward,
+                buy_price,
+                min_price,
+                max_price,
+            )
+            # description = (
+            #     f"[!] Transaction #{self.counter}: DIRECT SELL after buy "
+            #     f"Waited {self.waiting_streak}"
+            #     f"Good Waiting: {self.good_holds_with_no_shares_counter}. "
+            #     f"BAD Waiting: {self.bad_holds_with_no_shares_counter}."
+            # )
 
         elif predicted_action == "BUY" and close_price <= available_amount:
             shares_bought = available_amount // close_price
@@ -195,23 +309,45 @@ class StockTradingEnv(gym.Env):
             if percentage_distance_from_max <= percentage_buy_threshold:
                 self.good_buy_counter += 1
                 short_desc = "GOOD"
-                reward += 100 - (percentage_distance_from_max / percentage_buy_threshold) * 100
+                reward += (
+                    100
+                    - (percentage_distance_from_max / percentage_buy_threshold) * 100
+                )
             else:
                 self.bad_buy_counter += 1
                 short_desc = "BAD"
-                reward += -((percentage_distance_from_max - percentage_buy_threshold) / percentage_buy_threshold) * 100
+                reward += (
+                    -(
+                        (percentage_distance_from_max - percentage_buy_threshold)
+                        / percentage_buy_threshold
+                    )
+                    * 100
+                )
 
-            description = (
-                f"[+] Transaction #{self.counter}: {short_desc} Purchase Successful. "
-                f"Shares Acquired: {shares_bought}. "
-                f"Purchase Price per Share: ₹{close_price:.2f}. "
-                f"Total Buying Price: ₹{total_buy_price}. "
-                f"Available Amount: ₹{available_amount}. "
-                f"Waiting Period Before Purchase: {self.waiting_streak} intervals. "
-                f"Reward Earned: ₹{reward} (Good). "
-                f"Minimum Price {min_price} Maximum Price {max_price} "
-                f"Portfolio Value: ₹{portfolio_value}"
+            short_desc = f"{short_desc} Purchase Successful"
+            description = self.log(
+                short_desc,
+                shares_holding,
+                close_price,
+                available_amount,
+                portfolio_value,
+                reward,
+                buy_price,
+                min_price,
+                max_price,
             )
+
+            # description = (
+            #     f"[+] Transaction #{self.counter}: {short_desc} Purchase Successful. "
+            #     f"Shares Acquired: {shares_bought}. "
+            #     f"Purchase Price per Share: ₹{close_price:.2f}. "
+            #     f"Total Buying Price: ₹{total_buy_price}. "
+            #     f"Available Amount: ₹{available_amount}. "
+            #     f"Waiting Period Before Purchase: {self.waiting_streak} intervals. "
+            #     f"Reward Earned: ₹{reward} (Good). "
+            #     f"Minimum Price {min_price} Maximum Price {max_price} "
+            #     f"Portfolio Value: ₹{portfolio_value}"
+            # )
             # self.track_portfolio.append({
             #     'counter': self.counter,
             #     'buy_price': buy_price,
@@ -244,18 +380,30 @@ class StockTradingEnv(gym.Env):
                 self.bad_sell_counter += 1
                 self.bad_sell_loss += profit
                 reward *= 10
-
-            description = (
-                f"[+] Transaction #{self.counter}: {short_desc} Sale Executed. "
-                f"Shares Sold: {shares_sold}. "
-                f"Purchase Price per Share: ₹{buy_price}. "
-                f"Sale Price per Share: ₹{close_price}. "
-                f"Profit Earned: ₹{profit}. "
-                f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
-                f"Reward Earned: ₹{reward}. "
-                f"Portfolio Value: ₹{portfolio_value}."
-                f"Portfolio Value Threshold: ₹{portfolio_value_threshold}."
+            
+            short_desc = f"{short_desc} Sale Executed."
+            description = self.log(
+                short_desc,
+                shares_holding,
+                close_price,
+                available_amount,
+                portfolio_value,
+                reward,
+                buy_price,
+                min_price,
+                max_price,
             )
+            # description = (
+            #     f"[+] Transaction #{self.counter}: {short_desc}  "
+            #     f"Shares Sold: {shares_sold}. "
+            #     f"Purchase Price per Share: ₹{buy_price}. "
+            #     f"Sale Price per Share: ₹{close_price}. "
+            #     f"Profit Earned: ₹{profit}. "
+            #     f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
+            #     f"Reward Earned: ₹{reward}. "
+            #     f"Portfolio Value: ₹{portfolio_value}."
+            #     f"Portfolio Value Threshold: ₹{portfolio_value_threshold}."
+            # )
             # self.track_portfolio.append({
             #     'counter': self.counter,
             #     'sell_price': sell_price,
@@ -270,23 +418,46 @@ class StockTradingEnv(gym.Env):
 
         elif predicted_action == "HOLD":
             if shares_holding == 0:
-                if percentage_distance_from_max <= percentage_buy_threshold:
-                    reward += 100 - (percentage_distance_from_max / percentage_buy_threshold) * 100
+                if percentage_distance_from_min <= percentage_buy_threshold:
+                    reward += (
+                        100
+                        - (percentage_distance_from_min / percentage_buy_threshold)
+                        * 100
+                    )
                     # reward *= 10
                     short_desc = "MISSED Buying Opportunity"
                     self.bad_holds_with_no_shares_counter += 1
                 else:
-                    reward += -((percentage_distance_from_max - percentage_buy_threshold) / percentage_buy_threshold) * 100
+                    reward += (
+                        -(
+                            (percentage_distance_from_min - percentage_buy_threshold)
+                            / percentage_buy_threshold
+                        )
+                        * 100
+                    )
                     short_desc = "Waiting for Good Opportunity"
                     self.good_holds_with_no_shares_counter += 1
-                description = (
-                    f"[·] Transaction #{self.counter}: {short_desc}. "
-                    f"Duration of Waiting: {self.waiting_streak} intervals. "
-                    f"Current Share Price: ₹{close_price:.2f}. "
-                    f"Minimum Price {min_price} Maximum Price {max_price} "
-                    f"Reward Accumulated: ₹{reward}. "
-                    f"Portfolio Value: ₹{portfolio_value}."
+
+                short_desc = f"{short_desc}"
+                description = self.log(
+                    short_desc,
+                    shares_holding,
+                    close_price,
+                    available_amount,
+                    portfolio_value,
+                    reward,
+                    buy_price,
+                    min_price,
+                    max_price,
                 )
+                # description = (
+                #     f"[·] Transaction #{self.counter}: {short_desc}. "
+                #     f"Duration of Waiting: {self.waiting_streak} intervals. "
+                #     f"Current Share Price: ₹{close_price:.2f}. "
+                #     f"Minimum Price {min_price} Maximum Price {max_price} "
+                #     f"Reward Accumulated: ₹{reward}. "
+                #     f"Portfolio Value: ₹{portfolio_value}."
+                # )
                 self.waiting_streak += 1
                 self.holds_with_no_shares_counter += 1
             else:
@@ -307,17 +478,31 @@ class StockTradingEnv(gym.Env):
                     self.bad_hold_loss += profit
                     self.bad_hold_streak += 1
                     self.good_hold_streak = 0
-                description = (
-                    f"[+] Transaction #{self.counter}: {short_desc}. "
-                    f"Shares Held: {shares_holding}. "
-                    f"Purchase Price per Share: ₹{buy_price:.2f}. "
-                    f"Current Share Price: ₹{close_price:.2f}. "
-                    f"Profit/Loss: ₹{profit} "
-                    f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
-                    f"Reward Earned: ₹{reward}. "
-                    f"Portfolio Value: ₹{portfolio_value}."
-                    f"Portfolio Value Threshold: ₹{portfolio_value_threshold}."
+
+                short_desc = f"{short_desc}"
+                description = self.log(
+                    short_desc,
+                    shares_holding,
+                    close_price,
+                    available_amount,
+                    portfolio_value,
+                    reward,
+                    buy_price,
+                    min_price,
+                    max_price,
                 )
+
+                # description = (
+                #     f"[+] Transaction #{self.counter}: {short_desc}. "
+                #     f"Shares Held: {shares_holding}. "
+                #     f"Purchase Price per Share: ₹{buy_price:.2f}. "
+                #     f"Current Share Price: ₹{close_price:.2f}. "
+                #     f"Profit/Loss: ₹{profit} "
+                #     f"Holding Performance: Good Streak - {self.good_hold_streak}, Bad Streak - {self.bad_hold_streak}. "
+                #     f"Reward Earned: ₹{reward}. "
+                #     f"Portfolio Value: ₹{portfolio_value}."
+                #     f"Portfolio Value Threshold: ₹{portfolio_value_threshold}."
+                # )
                 self.hold_counter += 1
                 self.waiting_streak = 0
         else:
@@ -373,6 +558,8 @@ class StockTradingEnv(gym.Env):
         info = {
             "seed": self.seed,
             "counter": self.counter,
+            "min_price": min_price,
+            "max_price": max_price,
             "close_price": close_price,
             "predicted_action": predicted_action,
             "description": description,
@@ -383,6 +570,8 @@ class StockTradingEnv(gym.Env):
             "reward": reward,
             "done": done,
             "truncated": truncated,
+            "percentage_distance_from_min": percentage_distance_from_min,
+            "percentage_distance_from_max": percentage_distance_from_max,
             "correct_trade": self.correct_trade,
             "wrong_trade": self.wrong_trade,
             "correct_trade %": correct_trade_percent,

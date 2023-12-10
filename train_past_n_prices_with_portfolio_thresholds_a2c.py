@@ -12,10 +12,10 @@ TICKER = "SBIN.NS"
 TRAIN_FILE = Path("datasets") / f"{TICKER}_train"
 EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
 
-df = pl.read_parquet(TRAIN_FILE)
-
 CLOSE_PRICES = (
-    df.with_columns(index=pl.int_range(0, end=df.shape[0], eager=True))
+    pl
+    .read_parquet(TRAIN_FILE)
+    .with_columns(index=pl.int_range(0, end=pl.count(), eager=False))
     .sort("index")
     .set_sorted("index")
     .group_by_dynamic(
@@ -61,7 +61,7 @@ def main():
         )
 
     model.learn(
-        total_timesteps=30_000_000,
+        total_timesteps=5_000_000,
         progress_bar=True,
         reset_num_timesteps=reset_num_timesteps,
         callback=EvalCallback(model_name=model_name),
