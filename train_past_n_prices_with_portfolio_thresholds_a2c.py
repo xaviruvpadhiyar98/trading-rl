@@ -8,9 +8,9 @@ from callbacks.eval_callback import EvalCallback
 from common.make_vec_env import make_vec_env
 from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
 
-TICKER = "SBIN.NS"
-TRAIN_FILE = Path("datasets") / f"{TICKER}_train"
-EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
+TICKER = "WHIRLPOOL.NS"
+TRAIN_FILE = Path("datasets") / f"{TICKER}"
+# EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
 
 CLOSE_PRICES = (
     pl

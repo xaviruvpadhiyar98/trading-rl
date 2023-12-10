@@ -484,7 +484,7 @@ class StockTradingEnv(gym.Env):
                     self.bad_hold_streak = 0
                 else:
                     profit = portfolio_value - portfolio_value_threshold
-                    reward += profit
+                    reward += profit * 2
                     short_desc = "UnProfitable Holding"
                     self.bad_hold_counter += 1
                     self.bad_hold_loss += profit

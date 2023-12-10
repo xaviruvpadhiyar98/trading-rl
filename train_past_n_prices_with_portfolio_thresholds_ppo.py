@@ -8,14 +8,13 @@ from callbacks.eval_callback import EvalCallback
 from common.make_vec_env import make_vec_env
 from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
 
-TICKER = "SBIN.NS"
-TRAIN_FILE = Path("datasets") / f"{TICKER}_train"
-EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
-
-df = pl.read_parquet(TRAIN_FILE)
+TICKER = "WHIRLPOOL.NS"
+TRAIN_FILE = Path("datasets") / f"{TICKER}"
 
 CLOSE_PRICES = (
-    df.with_columns(index=pl.int_range(0, end=df.shape[0], eager=True))
+    pl
+    .read_parquet(TRAIN_FILE)
+    .with_columns(index=pl.int_range(0, end=pl.count(), eager=False))
     .sort("index")
     .set_sorted("index")
     .group_by_dynamic(

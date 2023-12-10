@@ -12,10 +12,9 @@ import numpy as np
 # from envs.single_stock_trading_past_n_price_env import StockTradingEnv
 from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
 
-TICKER = "SBIN.NS"
-EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
-TRAIN_FILE = Path("datasets") / f"{TICKER}_train"
-df = pl.read_parquet(TRAIN_FILE)
+TICKER = "WHIRLPOOL.NS"
+# EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
+TRAIN_FILE = Path("datasets") / f"{TICKER}"
 CLOSE_PRICES = (
     pl
     .read_parquet(TRAIN_FILE)
