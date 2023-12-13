@@ -8,35 +8,30 @@ from callbacks.eval_callback import EvalCallback
 from common.make_vec_env import make_vec_env
 from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
 
+from common.load_close_prices import load_close_prices
+from common.set_seed import set_seed
+
+SEED = 1337
+set_seed(SEED)
+
 TICKER = "WHIRLPOOL.NS"
 TRAIN_FILE = Path("datasets") / f"{TICKER}"
-# EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
 
-CLOSE_PRICES = (
-    pl
-    .read_parquet(TRAIN_FILE)
-    .with_columns(index=pl.int_range(0, end=pl.count(), eager=False))
-    .sort("index")
-    .set_sorted("index")
-    .group_by_dynamic(
-        "index", every="1i", period="40i", include_boundaries=True, closed="right"
-    )
-    .agg(pl.col("Close"))
-    .with_columns(pl.col("Close").list.len().alias("Count"))
-    .filter(pl.col("Count") == 40)["Close"]
-    .to_numpy()
-)
-# EVAL_CLOSE_PRICES = pl.read_parquet(EVAL_FILE)["Close"].to_numpy()
+CLOSE_PRICES = load_close_prices(TICKER)
 
 
 def main():
-    model_name = "single_stock_trading_past_n_price_portfolio_reward_a2c"
+    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_a2c"
     num_envs = 128
+    n_steps = 5
+    epoch = 10000 * 8
+    total_timesteps = (num_envs * n_steps) * epoch
+
     check_env(StockTradingEnv(CLOSE_PRICES, seed=0))
     vec_env = make_vec_env(
         env_id=StockTradingEnv,
         close_prices=CLOSE_PRICES,
-        start_seed=1337,
+        start_seed=SEED,
         n_envs=num_envs,
     )
 
@@ -54,14 +49,14 @@ def main():
             "MlpPolicy",
             vec_env,
             verbose=2,
-            # n_steps=10,
+            n_steps=n_steps,
             device="cpu",
             ent_coef=0.05,
             tensorboard_log="tensorboard_log",
         )
 
     model.learn(
-        total_timesteps=20_000_000,
+        total_timesteps=total_timesteps,
         progress_bar=True,
         reset_num_timesteps=reset_num_timesteps,
         callback=EvalCallback(model_name=model_name),

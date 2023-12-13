@@ -29,7 +29,7 @@ CLOSE_PRICES = (
 
 
 def main():
-    model_name = "single_stock_trading_past_n_price_portfolio_reward_ppo"
+    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_ppo"
     num_envs = 8
     check_env(StockTradingEnv(CLOSE_PRICES, seed=0))
     vec_env = make_vec_env(

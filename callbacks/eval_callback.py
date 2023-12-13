@@ -12,23 +12,12 @@ import numpy as np
 # from envs.single_stock_trading_past_n_price_env import StockTradingEnv
 from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
 
+from common.load_close_prices import load_close_prices
+
 TICKER = "WHIRLPOOL.NS"
-# EVAL_FILE = Path("datasets") / f"{TICKER}_trade"
 TRAIN_FILE = Path("datasets") / f"{TICKER}"
-CLOSE_PRICES = (
-    pl
-    .read_parquet(TRAIN_FILE)
-    .with_columns(index=pl.int_range(0, end=pl.count(), eager=False))
-    .sort("index")
-    .set_sorted("index")
-    .group_by_dynamic(
-        "index", every="1i", period="40i", include_boundaries=True, closed="right"
-    )
-    .agg(pl.col("Close"))
-    .with_columns(pl.col("Close").list.len().alias("Count"))
-    .filter(pl.col("Count") == 40)["Close"]
-    .to_numpy()
-)
+
+CLOSE_PRICES = load_close_prices(TICKER)
 
 
 class EvalCallback(BaseCallback):
@@ -65,7 +54,7 @@ class EvalCallback(BaseCallback):
             obs, reward, done, truncated, info = env.step(actions.item())
             infos.append(info)
             if done or truncated:
-                if info['portfolio_value'] >= 15000:
+                if info['portfolio_value'] >= 12000:
                     dir = Path(f"logs/{self.log_name}/")
                     dir.mkdir(parents=True, exist_ok=True)
                     (dir / f"{self.num_timesteps}-{info['portfolio_value']}").write_text(

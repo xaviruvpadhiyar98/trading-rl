@@ -432,20 +432,27 @@ class StockTradingEnv(gym.Env):
             if shares_holding == 0:
                 if percentage_distance_from_min <= percentage_buy_threshold:
                     reward += (
-                        100
-                        - (percentage_distance_from_min / percentage_buy_threshold)
-                        * 100
-                    )
-                    # reward *= 10
+                        close_price - max_price
+                    ) * 10
+                    # reward += (
+                    #     100
+                    #     - (percentage_distance_from_min / percentage_buy_threshold)
+                    #     * 100
+                    # )
+                    # if reward < 0:
+                    #     reward *= 10
                     short_desc = "MISSED Buying Opportunity"
                     self.bad_holds_with_no_shares_counter += 1
                 else:
+                    # reward += (
+                    #     -(
+                    #         (percentage_distance_from_min - percentage_buy_threshold)
+                    #         / percentage_buy_threshold
+                    #     )
+                    #     * 100
+                    # )
                     reward += (
-                        -(
-                            (percentage_distance_from_min - percentage_buy_threshold)
-                            / percentage_buy_threshold
-                        )
-                        * 100
+                        close_price - min_price
                     )
                     short_desc = "Waiting for Good Opportunity"
                     self.good_holds_with_no_shares_counter += 1
@@ -474,9 +481,9 @@ class StockTradingEnv(gym.Env):
                 self.holds_with_no_shares_counter += 1
             else:
                 portfolio_value = shares_holding * close_price + available_amount
+                profit = portfolio_value - portfolio_value_threshold
+                reward += profit
                 if portfolio_value > portfolio_value_threshold:
-                    profit = portfolio_value - portfolio_value_threshold
-                    reward += profit
                     short_desc = "Profitable Holding"
                     self.good_hold_counter += 1
                     self.good_hold_profit += profit
@@ -484,7 +491,7 @@ class StockTradingEnv(gym.Env):
                     self.bad_hold_streak = 0
                 else:
                     profit = portfolio_value - portfolio_value_threshold
-                    reward += profit * 2
+                    reward *= 10
                     short_desc = "UnProfitable Holding"
                     self.bad_hold_counter += 1
                     self.bad_hold_loss += profit
