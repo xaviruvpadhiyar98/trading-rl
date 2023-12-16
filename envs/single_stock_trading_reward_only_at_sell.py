@@ -237,7 +237,7 @@ class StockTradingEnv(gym.Env):
                 else:
                     short_desc = "Profitable SOLD"
                     good_sell_profit += profit
-                    portfolio_value_threshold = portfolio_value
+                    # portfolio_value_threshold =   
                     reward += (total_sell_price) * 2
 
 
@@ -274,7 +274,7 @@ class StockTradingEnv(gym.Env):
             good_hold_profit += portfolio_value - portfolio_value_threshold
         else:
             reward -= (portfolio_value_threshold - portfolio_value) * 2
-            bad_hold_loss = (portfolio_value_threshold - portfolio_value)
+            bad_hold_loss -= (portfolio_value_threshold - portfolio_value)
 
         if terminated:
             reward -= 50_000
