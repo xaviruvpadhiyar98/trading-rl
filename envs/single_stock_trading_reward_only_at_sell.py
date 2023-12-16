@@ -78,6 +78,7 @@ class StockTradingEnv(gym.Env):
         profit = 0
         portfolio_value = available_amount
         portfolio_value_threshold = portfolio_value
+        self.updated_portfolio_value = 0
 
 
         self.state = np.concatenate(
@@ -233,6 +234,7 @@ class StockTradingEnv(gym.Env):
                     short_desc = "Profitable SOLD (exceeded PV threshold)"
                     good_sell_profit += profit
                     portfolio_value_threshold = portfolio_value
+                    self.updated_portfolio_value += 1 
                     reward += (total_sell_price) * 10
                 else:
                     short_desc = "Profitable SOLD"
@@ -270,7 +272,7 @@ class StockTradingEnv(gym.Env):
 
 
         if portfolio_value > portfolio_value_threshold:
-            reward += portfolio_value - portfolio_value_threshold
+            reward += (portfolio_value - portfolio_value_threshold) * self.updated_portfolio_value
             good_hold_profit += portfolio_value - portfolio_value_threshold
         else:
             reward -= (portfolio_value_threshold - portfolio_value) * 2
@@ -282,24 +284,25 @@ class StockTradingEnv(gym.Env):
 
 
         description = (
-            f"[+] {predicted_action} Transaction #{counter}: {short_desc}. \n"
-            f"Min Price: {min_price:.2f}. \n "
-            f"Close Price: {close_price:.2f}. \n "
-            f"Max Price: {max_price:.2f}. \n "
-            f"Reward: {reward}. \n "
-            f"Reward Tracker: {reward_tracker}. \n "
-            f"Shares: {shares_holding}. \n "
-            f"Available Amount: {available_amount}. \n "
-            f"Portfolio Value: {portfolio_value}. \n "
-            f"Portfolio Value threshold: {portfolio_value_threshold}. \n "
-            f"Buy Counters: {buy_counter}. \n "
-            f"Sell Counters: {sell_counter}. \n "
-            f"Hold Counters: {hold_counter}. \n "
-            f"Waiting Period Before Purchase: {waiting_streak} intervals. \n "
-            f"HOLD Streak: {hold_streak}. \n"
-            f"Holding with No Shares Counter: {holds_with_no_shares_counter} intervals. \n "
-            f"Buying Price: ₹{buy_price}. \n "
-            f"Buying Price Index: ₹{buy_price_index}. \n "
+            f"[+] {predicted_action} Transaction #{counter}: {short_desc}. <br>"
+            f"Min Price: {min_price:.2f}. <br> "
+            f"Close Price: {close_price:.2f}. <br> "
+            f"Max Price: {max_price:.2f}. <br> "
+            f"Reward: {reward}. <br> "
+            f"Reward Tracker: {reward_tracker}. <br> "
+            f"Shares: {shares_holding}. <br> "
+            f"Available Amount: {available_amount}. <br> "
+            f"Portfolio Value: {portfolio_value}. <br> "
+            f"Portfolio Value threshold: {portfolio_value_threshold}. <br> "
+            f"Buy Counters: {buy_counter}. <br> "
+            f"Sell Counters: {sell_counter}. <br> "
+            f"Hold Counters: {hold_counter}. <br> "
+            f"Waiting Period Before Purchase: {waiting_streak} intervals. <br> "
+            f"HOLD Streak: {hold_streak}. <br>"
+            f"Holding with No Shares Counter: {holds_with_no_shares_counter} intervals. <br> "
+            f"Buying Price: ₹{buy_price}. <br> "
+            f"Buying Price Index: ₹{buy_price_index}. <br> "
+            f"Portfolio Value counter: {self.updated_portfolio_value}"
         )
 
 
@@ -347,6 +350,7 @@ class StockTradingEnv(gym.Env):
             "combined_hold_profit": combined_hold_profit,
             "combined_sell_profit": combined_sell_profit,
             "combined_total_profit": combined_hold_profit + combined_sell_profit,
+            "updated_portfolio_value": self.updated_portfolio_value
         }
 
         if done or terminated:
