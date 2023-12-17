@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import polars as pl
-from stable_baselines3 import A2C
+from sbx import PPO
 from stable_baselines3.common.env_checker import check_env
 
 from callbacks.eval_callback import EvalCallback
@@ -20,15 +20,13 @@ TRAIN_FILE = Path("datasets") / f"{TICKER}"
 
 CLOSE_PRICES = load_close_prices(TICKER)
 
-
 def main():
-    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_a2c"
-    num_envs = 128
-    n_steps = 5
-    epoch = 10000 * 4
+    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_jax-ppo"
+    num_envs = 2056
+    n_steps = 128
+    epoch = 100
     total_timesteps = (num_envs * n_steps) * epoch
-
-    check_env(StockTradingEnv(CLOSE_PRICES, seed=0))
+    check_env(StockTradingEnv(CLOSE_PRICES, seed=SEED))
     vec_env = make_vec_env(
         env_id=StockTradingEnv,
         close_prices=CLOSE_PRICES,
@@ -38,20 +36,20 @@ def main():
 
     if Path(f"trained_models/{model_name}.zip").exists():
         reset_num_timesteps = False
-        model = A2C.load(
+        model = PPO.load(
             f"trained_models/{model_name}.zip",
             vec_env,
             print_system_info=True,
-            device="cpu",
+            device="auto",
         )
     else:
         reset_num_timesteps = True
-        model = A2C(
+        model = PPO(
             "MlpPolicy",
             vec_env,
             verbose=2,
             n_steps=n_steps,
-            device="cpu",
+            device="auto",
             ent_coef=0.05,
             tensorboard_log="tensorboard_log",
         )

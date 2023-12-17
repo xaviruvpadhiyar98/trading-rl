@@ -78,7 +78,7 @@ class StockTradingEnv(gym.Env):
         profit = 0
         portfolio_value = available_amount
         portfolio_value_threshold = portfolio_value
-        self.updated_portfolio_value = 0
+        self.updated_portfolio_value = 1
 
 
         self.state = np.concatenate(

@@ -3,6 +3,8 @@ from pathlib import Path
 
 import polars as pl
 from stable_baselines3 import A2C, PPO
+from sbx import PPO as JAX_PPO
+
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 
@@ -37,7 +39,7 @@ class EvalCallback(BaseCallback):
     def test_and_log(self, seed) -> None:
 
         env = StockTradingEnv(CLOSE_PRICES, seed)
-        model = {"ppo": PPO, "a2c": A2C}[self.model_name]
+        model = {"ppo": PPO, "a2c": A2C, "jax-ppo": JAX_PPO}[self.model_name]
         trade_model = model("MlpPolicy", env)
         trade_model.set_parameters(self.model.get_parameters())
         obs, info = env.reset()
@@ -122,7 +124,7 @@ class EvalCallback(BaseCallback):
                 self.logger.record(f"steaks/{k}", v)
 
             else:
-                self.logger.record(f"commons/{k}", v)
+                self.logger.record(f"xcommons/{k}", v)
 
             # if k == "portfolio_value" and v > 14000:
             #     dir = Path(f"logs/{self.log_name}/")
