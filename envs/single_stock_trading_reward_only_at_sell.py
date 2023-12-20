@@ -275,7 +275,7 @@ class StockTradingEnv(gym.Env):
             reward += (portfolio_value - portfolio_value_threshold) * self.updated_portfolio_value
             good_hold_profit += portfolio_value - portfolio_value_threshold
         else:
-            reward -= (portfolio_value_threshold - portfolio_value) * 2
+            reward -= (portfolio_value_threshold - portfolio_value) * counter
             bad_hold_loss -= (portfolio_value_threshold - portfolio_value)
 
         if terminated:
