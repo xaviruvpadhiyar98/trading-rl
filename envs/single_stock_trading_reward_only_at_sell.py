@@ -188,10 +188,10 @@ class StockTradingEnv(gym.Env):
 
 
         
-        # Attempting to keeping missing good opportunities
-        elif holds_with_no_shares_counter > 200:
-            terminated = True
-            short_desc = "missed 200+ opportunity"
+        # # Attempting to keeping missing good opportunities
+        # elif holds_with_no_shares_counter > 200:
+        #     terminated = True
+        #     short_desc = "missed 200+ opportunity"
 
 
         # Attempting to keeping missing good opportunities
@@ -208,7 +208,7 @@ class StockTradingEnv(gym.Env):
             total_buy_price = buy_price * shares_bought
             buy_price_index = counter
             available_amount -= total_buy_price
-            reward += total_buy_price
+            reward += shares_bought
 
             short_desc = f"Purchase Successful"
 
@@ -272,11 +272,11 @@ class StockTradingEnv(gym.Env):
 
 
         if portfolio_value > portfolio_value_threshold:
-            reward += (portfolio_value - portfolio_value_threshold) * self.updated_portfolio_value
-            good_hold_profit += portfolio_value - portfolio_value_threshold
+            reward += (portfolio_value - portfolio_value_threshold)
+            good_hold_profit = portfolio_value - portfolio_value_threshold
         else:
-            reward -= (portfolio_value_threshold - portfolio_value) * counter
-            bad_hold_loss -= (portfolio_value_threshold - portfolio_value)
+            reward -= (portfolio_value_threshold - portfolio_value)
+            bad_hold_loss = (portfolio_value_threshold - portfolio_value)
 
         if terminated:
             reward -= 50_000
