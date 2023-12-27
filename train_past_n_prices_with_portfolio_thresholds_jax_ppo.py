@@ -21,15 +21,15 @@ TRAIN_FILE = Path("datasets") / f"{TICKER}"
 CLOSE_PRICES = load_close_prices(TICKER)
 
 def main():
-    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_jax-ppo"
+    model_name = f"single_stock_trading_portfolio_reward_new_arch_{TICKER.split('.')[0]}_jax-ppo"
     num_envs = 2056
     n_steps = 128
-    epoch = 100
+    epoch = 500 // 4
     total_timesteps = (num_envs * n_steps) * epoch
     check_env(StockTradingEnv(CLOSE_PRICES, seed=SEED))
     vec_env = make_vec_env(
         env_id=StockTradingEnv,
-        close_prices=CLOSE_PRICES,
+        close_prices=CLOSE_PRICES[:200],
         start_seed=SEED,
         n_envs=num_envs,
     )
@@ -52,6 +52,9 @@ def main():
             device="auto",
             ent_coef=0.05,
             tensorboard_log="tensorboard_log",
+            policy_kwargs = dict(
+                net_arch=dict(pi=[32, 64, 128, 64, 32], vf=[32, 64, 128, 64, 32])
+            )
         )
 
     model.learn(

@@ -22,7 +22,7 @@ CLOSE_PRICES = load_close_prices(TICKER)
 
 
 def main():
-    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_a2c"
+    model_name = f"portfolio_reward_{TICKER.split('.')[0]}_a2c"
     num_envs = 128
     n_steps = 5
     epoch = 10000 * 4
@@ -31,7 +31,7 @@ def main():
     check_env(StockTradingEnv(CLOSE_PRICES, seed=0))
     vec_env = make_vec_env(
         env_id=StockTradingEnv,
-        close_prices=CLOSE_PRICES,
+        close_prices=CLOSE_PRICES[:200],
         start_seed=SEED,
         n_envs=num_envs,
     )

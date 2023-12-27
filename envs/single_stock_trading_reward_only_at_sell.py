@@ -79,6 +79,8 @@ class StockTradingEnv(gym.Env):
         portfolio_value = available_amount
         portfolio_value_threshold = portfolio_value
         self.updated_portfolio_value = 1
+        self.buy_tracker = ""
+        self.sell_tracker = ""
 
 
         self.state = np.concatenate(
@@ -127,7 +129,7 @@ class StockTradingEnv(gym.Env):
         reward = 0
         terminated = False
         counter = self.state[0]
-        past_n_prices = self.state[1:40]
+        past_n_prices = self.state[1:41]
         close_price = past_n_prices[-1]
         max_price = max(past_n_prices)
         min_price = min(past_n_prices)
@@ -181,10 +183,23 @@ class StockTradingEnv(gym.Env):
 
 
 
-        # PF reached less than 85% of its initial price
-        elif portfolio_value < 8500:
+        # PF reached less than 95% of its initial price
+        elif portfolio_value < 10_000:
             terminated = True
-            short_desc = "PORTFOLIO VALUE is less than 8500"
+            short_desc = "PORTFOLIO VALUE is less than 10_000"
+
+
+        # if done nothing
+        elif buy_counter == 0 and sell_counter == 0 and counter > 30:
+            terminated = True
+            short_desc = "Didnt do anything"
+            
+        # # if done nothing
+        elif waiting_streak > 400:
+            terminated = True
+            short_desc = "keeps waiting"
+
+
 
 
         
@@ -216,6 +231,7 @@ class StockTradingEnv(gym.Env):
             hold_streak = 0
             waiting_streak = 0
             correct_trade += 1
+            self.buy_tracker += f"({counter},{buy_price})->"
 
         elif predicted_action == "SELL" and shares_holding > 0:
             shares_sold = shares_holding
@@ -235,7 +251,7 @@ class StockTradingEnv(gym.Env):
                     good_sell_profit += profit
                     portfolio_value_threshold = portfolio_value
                     self.updated_portfolio_value += 1 
-                    reward += (total_sell_price) * 10
+                    reward += (total_sell_price) * 100
                 else:
                     short_desc = "Profitable SOLD"
                     good_sell_profit += profit
@@ -244,6 +260,7 @@ class StockTradingEnv(gym.Env):
 
 
             short_desc = f"{short_desc} Sale Executed."
+            self.sell_tracker += f"({counter},{sell_price})->"
 
 
             sell_counter += 1
@@ -271,8 +288,10 @@ class StockTradingEnv(gym.Env):
             ValueError("Something is wrong in conditions")
 
 
-        if portfolio_value > portfolio_value_threshold:
-            reward += (portfolio_value - portfolio_value_threshold)
+        if portfolio_value == portfolio_value_threshold:
+            reward = 0
+        elif portfolio_value > portfolio_value_threshold:
+            reward += (portfolio_value - portfolio_value_threshold) * self.updated_portfolio_value
             good_hold_profit = portfolio_value - portfolio_value_threshold
         else:
             reward -= (portfolio_value_threshold - portfolio_value)
@@ -281,6 +300,8 @@ class StockTradingEnv(gym.Env):
         if terminated:
             reward -= 50_000
             wrong_trade += 1
+
+        reward += portfolio_value - 10000
 
 
         description = (
@@ -302,7 +323,9 @@ class StockTradingEnv(gym.Env):
             f"Holding with No Shares Counter: {holds_with_no_shares_counter} intervals. <br> "
             f"Buying Price: ₹{buy_price}. <br> "
             f"Buying Price Index: ₹{buy_price_index}. <br> "
-            f"Portfolio Value counter: {self.updated_portfolio_value}"
+            f"Portfolio Value counter: {self.updated_portfolio_value}. <br> "
+            f"Buy Tracker: {self.buy_tracker}. <br>"
+            f"Sell Tracker: {self.sell_tracker}. <br>"
         )
 
 
@@ -350,7 +373,9 @@ class StockTradingEnv(gym.Env):
             "combined_hold_profit": combined_hold_profit,
             "combined_sell_profit": combined_sell_profit,
             "combined_total_profit": combined_hold_profit + combined_sell_profit,
-            "updated_portfolio_value": self.updated_portfolio_value
+            "updated_portfolio_value": self.updated_portfolio_value,
+            "buy_tracker": self.buy_tracker,
+            "sell_tracker": self.sell_tracker,
         }
 
         if done or terminated:

@@ -31,7 +31,8 @@ class EvalCallback(BaseCallback):
         self.log_name = model_name
 
     def _on_training_start(self) -> None:
-        self.test_and_log(1337)
+        # self.test_and_log(1337)
+        pass
 
     def _on_rollout_start(self) -> None:
         pass
@@ -133,7 +134,7 @@ class EvalCallback(BaseCallback):
             #         json.dumps(best_info, default=str, indent=4)
             #     )
 
-        self.test_and_log(best_info_seed)
+        # self.test_and_log(best_info_seed)
 
     def _on_training_end(self) -> None:
         pass
