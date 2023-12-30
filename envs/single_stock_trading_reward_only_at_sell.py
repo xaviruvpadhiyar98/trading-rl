@@ -33,7 +33,13 @@ class StockTradingEnv(gym.Env):
             shape=(64,),
             dtype=np.float32,
         )
-        self.action_space = Discrete(3)
+        # self.action_space = Discrete(3)
+        self.action_space = Box(
+            low=-1,
+            high=1,
+            shape=(3,),
+            dtype=np.float32,
+        )
         self.seed = seed
 
     def reset(self, *, seed=None, options=None):
@@ -158,7 +164,9 @@ class StockTradingEnv(gym.Env):
         portfolio_value_threshold = self.state[63]
 
 
-        predicted_action = ACTION_MAP[action]
+        best_action = np.argmax(action)
+        predicted_action = ACTION_MAP[best_action]
+        # predicted_action = ACTION_MAP[action]
 
 
         # Attempting to buy without sufficient funds.
@@ -181,12 +189,6 @@ class StockTradingEnv(gym.Env):
             terminated = True
             short_desc = "SELLING DIRECT AFTER BUY"
 
-
-
-        # PF reached less than 95% of its initial price
-        elif portfolio_value < 10_000:
-            terminated = True
-            short_desc = "PORTFOLIO VALUE is less than 10_000"
 
 
         # if done nothing
@@ -250,7 +252,8 @@ class StockTradingEnv(gym.Env):
                     short_desc = "Profitable SOLD (exceeded PV threshold)"
                     good_sell_profit += profit
                     portfolio_value_threshold = portfolio_value
-                    self.updated_portfolio_value += 1 
+                    self.updated_portfolio_value += 1
+                    correct_trade += 1
                     reward += (total_sell_price) * 100
                 else:
                     short_desc = "Profitable SOLD"
@@ -283,13 +286,14 @@ class StockTradingEnv(gym.Env):
                 short_desc = "Holding with shares"
                 hold_counter += 1
                 waiting_streak = 0
+
         else:
             print(predicted_action)
             ValueError("Something is wrong in conditions")
 
 
         if portfolio_value == portfolio_value_threshold:
-            reward = 0
+            reward += 0
         elif portfolio_value > portfolio_value_threshold:
             reward += (portfolio_value - portfolio_value_threshold) * self.updated_portfolio_value
             good_hold_profit = portfolio_value - portfolio_value_threshold
@@ -302,6 +306,12 @@ class StockTradingEnv(gym.Env):
             wrong_trade += 1
 
         reward += portfolio_value - 10000
+
+        # PF reached less than 95% of its initial price
+        if portfolio_value < 10_000:
+            terminated = True
+            short_desc = "PORTFOLIO VALUE is less than 10_000"
+
 
 
         description = (

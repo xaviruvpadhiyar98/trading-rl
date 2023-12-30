@@ -1,7 +1,6 @@
 from pathlib import Path
 
-import polars as pl
-from sbx import PPO
+from sbx import SAC
 from stable_baselines3.common.env_checker import check_env
 
 from callbacks.eval_callback import EvalCallback
@@ -21,8 +20,8 @@ TRAIN_FILE = Path("datasets") / f"{TICKER}"
 CLOSE_PRICES = load_close_prices(TICKER)
 
 def main():
-    model_name = f"single_stock_trading_portfolio_reward_new_arch_{TICKER.split('.')[0]}_jax-ppo"
-    num_envs = 2056
+    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_jax-sac"
+    num_envs = 1024 * 2
     n_steps = 128
     epoch = 500 // 10
     total_timesteps = (num_envs * n_steps) * epoch
@@ -36,26 +35,36 @@ def main():
 
     if Path(f"trained_models/{model_name}.zip").exists():
         reset_num_timesteps = False
-        model = PPO.load(
+        model = SAC.load(
             f"trained_models/{model_name}.zip",
             vec_env,
             print_system_info=True,
             device="auto",
         )
-        model.ent_coef = 0.0 # now let's exploit
-        model.use_sde = True
+        # model.ent_coef = 0.0 # now let's exploit
+        # model.use_sde = True
     else:
         reset_num_timesteps = True
-        model = PPO(
+        model = SAC(
             "MlpPolicy",
             vec_env,
+            # learning_rate=0.00001,
             verbose=2,
-            n_steps=n_steps,
-            device="auto",
-            ent_coef=0.05,
+            # n_steps=n_steps,
+            # device="auto",
+            # ent_coef=0.15,
+            # use_sde=True,
+            # sde_sample_freq=4,
+            # vf_coef=0.5,
+            # max_grad_norm=0.5,
+            # normalize_advantage=True,
+            # n_epochs=20,
             tensorboard_log="tensorboard_log",
             policy_kwargs = dict(
-                net_arch=dict(pi=[32, 64, 128, 64, 32], vf=[32, 64, 128, 64, 32])
+                net_arch=dict(
+                    pi=[512, 512], vf=[512, 512]
+                ),
+                log_std_init=2
             )
         )
 
