@@ -4,6 +4,23 @@ from gymnasium.spaces import Box, Discrete
 
 
 ACTION_MAP = {0: "HOLD", 1: "BUY", 2: "SELL"}
+EPS = 37.54
+EXPECTED_GROWTH_RATE = 10
+SCALE_FACTOR = 10
+HOLD_FACTOR = 5
+TRANSACTION_PENALTY = 1
+RISK_ADJUSTMENT_FACTOR = 0.75  # Adjusts reward based on risk
+DIVERSIFICATION_BONUS = 0.5    # Bonus for diversification
+MAX_LOSS_THRESHOLD = 0.1       # Maximum allowable loss as a fraction of portfolio
+PROFIT_SCALING_FACTOR = 0.02
+LOSS_PENALTY_FACTOR = 0.08
+HOLD_REWARD = 0.01
+HOLD_PENALTY = -0.01
+TRADE_PENALTY = 0.05  # Significantly increased penalty for each trade
+HOLDING_REWARD_BASE = 0.001  # Base reward for holding shares
+NO_SHARE_HOLDING_REWARD = 0.002  # Reward for holding with no shares
+INITIAL_AMOUNT = 10_000
+
 
 
 class StockTradingEnv(gym.Env):
@@ -167,6 +184,7 @@ class StockTradingEnv(gym.Env):
         # best_action = np.argmax(action)
         # predicted_action = ACTION_MAP[best_action]
         predicted_action = ACTION_MAP[action]
+        intrinsic_value = EPS * (8.5 + 2 * EXPECTED_GROWTH_RATE)
 
 
         # Attempting to buy without sufficient funds.
@@ -187,7 +205,10 @@ class StockTradingEnv(gym.Env):
             total_buy_price = buy_price * shares_bought
             buy_price_index = counter
             available_amount -= total_buy_price
-            reward += shares_bought
+
+            # reward = ((intrinsic_value - close_price) / close_price) * SCALE_FACTOR
+            # reward += shares_bought
+            # reward = 0.01
 
             short_desc = f"Purchase Successful"
 
@@ -205,29 +226,52 @@ class StockTradingEnv(gym.Env):
             profit = total_sell_price - total_buy_price
             portfolio_value = available_amount
 
+
+
+
             if profit < 0:
                 short_desc = "LOSS of profit when SELL"
                 bad_sell_loss += profit
-                reward -= total_sell_price
+                # reward -= total_sell_price
+                # reward += (
+                #     (((intrinsic_value - close_price) / intrinsic_value)
+                #     * SCALE_FACTOR)
+                #     * -1
+                # )
+                reward = -1
+                wrong_trade += 1
+
             else:
+                # reward = (
+                #     (close_price - intrinsic_value) / intrinsic_value
+                # ) * SCALE_FACTOR
+                # reward = 0
+
                 if portfolio_value > portfolio_value_threshold:
                     short_desc = "Profitable SOLD (exceeded PV threshold)"
                     good_sell_profit += profit
                     portfolio_value_threshold = portfolio_value
                     self.updated_portfolio_value += 1
+                    # reward += (total_sell_price) * 100
+                    # reward *= hold_streak
+                    reward = 1
                     correct_trade += 1
-                    reward += (total_sell_price) * 100
+
                 else:
+                    wrong_trade += 1
+                    reward = -1
                     short_desc = "Profitable SOLD"
                     good_sell_profit += profit
-                    # portfolio_value_threshold =   
-                    reward += (total_sell_price) * 2
 
+            if hold_streak < 3:
+                short_desc += " SELLING DIRECT AFTER BUY"
+                reward = -1
 
+            # reward -= 0.01
             short_desc = f"{short_desc} Sale Executed."
             self.sell_tracker += f"({counter},{sell_price}),"
 
-
+            
             sell_counter += 1
             shares_holding = 0
             buy_price = 0
@@ -241,7 +285,9 @@ class StockTradingEnv(gym.Env):
                 short_desc = f"Waiting for buying shares"
                 waiting_streak += 1
                 holds_with_no_shares_counter += 1
-                reward += 0
+                # reward = 0.015
+                reward = 0
+
 
             else:
                 portfolio_value = shares_holding * close_price + available_amount
@@ -250,14 +296,18 @@ class StockTradingEnv(gym.Env):
                 hold_counter += 1
                 waiting_streak = 0
 
+                # reward = (((close_price - buy_price) / buy_price) * HOLD_FACTOR)
+                reward = 0
+                
+
                 if portfolio_value > portfolio_value_threshold:
-                    reward += (
-                        portfolio_value - portfolio_value_threshold
-                    ) * self.updated_portfolio_value
+                    # reward += 0.2
                     good_hold_profit = portfolio_value - portfolio_value_threshold
+                    # portfolio_value_threshold = portfolio_value
                     correct_trade += 1
                 else:
-                    reward += portfolio_value - portfolio_value_threshold
+                    wrong_trade += 1
+                    # reward *= -0.05
                     bad_hold_loss = portfolio_value_threshold - portfolio_value
 
         else:
@@ -265,7 +315,25 @@ class StockTradingEnv(gym.Env):
             ValueError("Something is wrong in conditions")
 
 
-        # Attempting to sell right after buying
+
+        # # Churning penalty
+        # if (buy_counter+sell_counter) > 10:
+        #     reward += -0.1 * (buy_counter+sell_counter - 10)
+
+        if portfolio_value > 11400:
+            reward += 0.01
+
+        if portfolio_value < portfolio_value_threshold and sell_counter > 1:
+            reward -= 0.01
+        
+        if portfolio_value > portfolio_value_threshold:
+            reward += 0.01
+        
+
+
+        reward = max(min(reward, 1), -1)
+
+        # # Attempting to sell right after buying
         # if predicted_action == "SELL" and (
         #     hold_streak < 2
         # ):
@@ -286,6 +354,8 @@ class StockTradingEnv(gym.Env):
         if portfolio_value < 10_000:
             terminated = True
             short_desc = "PORTFOLIO VALUE is less than 10_000"
+        
+
         
         # else:
         #     pass
@@ -328,8 +398,8 @@ class StockTradingEnv(gym.Env):
 
 
         if terminated:
-            reward -= 50_000
-            wrong_trade += 1
+            reward -= 2
+            # wrong_trade += 1
 
 
         description = (

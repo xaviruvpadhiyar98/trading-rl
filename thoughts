@@ -17,3 +17,181 @@ Reward Accumulated: ₹17.79814102564103
 Min Past Price: ₹525.75 
 Max Past Price: ₹547.7999877929688 
 Portfolio Value: ₹10000.0.
+
+
+Buffets strategy
+```python
+def calculate_intrinsic_value(eps, expected_growth_rate):
+    """
+    Calculate the intrinsic value of a stock using a simplified version of the Benjamin Graham formula.
+    :param eps: Earnings Per Share
+    :param expected_growth_rate: Expected annual growth rate (in percentage)
+    :return: Intrinsic Value of the stock
+    """
+    return eps * (8.5 + 2 * expected_growth_rate)
+
+
+def calculate_reward(action, stock_price, intrinsic_value, initial_buy_price, eps, expected_growth_rate,
+                     scale_factor, hold_factor, transaction_penalty):
+    """
+    Calculate the reward based on the action taken by the agent.
+    :param action: 'buy', 'sell', or 'hold'
+    :param stock_price: Current stock price
+    :param intrinsic_value: Intrinsic value of the stock
+    :param initial_buy_price: Initial buy price of the stock
+    :param eps: Earnings Per Share
+    :param expected_growth_rate: Expected annual growth rate (in percentage)
+    :param scale_factor: Scale factor for buy/sell rewards
+    :param hold_factor: Hold factor for holding rewards
+    :param transaction_penalty: Penalty for making a transaction
+    :return: Reward based on the action
+    """
+    reward = 0
+
+    if action == 'buy':
+        if stock_price < intrinsic_value:
+            # Reward for buying undervalued stock
+            reward = ((intrinsic_value - stock_price) / stock_price) * scale_factor
+        else:
+            # Penalty for buying overvalued stock
+            reward = ((stock_price - intrinsic_value) / stock_price) * scale_factor * -1
+        reward -= transaction_penalty  # Transaction penalty
+
+    elif action == 'sell':
+        if stock_price > intrinsic_value:
+            # Reward for selling overvalued stock
+            reward = ((stock_price - intrinsic_value) / intrinsic_value) * scale_factor
+        else:
+            # Penalty for selling undervalued stock
+            reward = ((intrinsic_value - stock_price) / intrinsic_value) * scale_factor * -1
+        reward -= transaction_penalty  # Transaction penalty
+
+    elif action == 'hold':
+        # Reward for holding, higher for undervalued stocks
+        if stock_price < intrinsic_value:
+            reward = ((stock_price - initial_buy_price) / initial_buy_price) * hold_factor
+
+    return reward
+
+# Example usage
+action = 'buy'  # or 'sell', 'hold'
+stock_price = 100  # Current stock price
+initial_buy_price = 95  # Initial buy price of the stock
+eps = 5  # Earnings Per Share
+expected_growth_rate = 10  # Expected annual growth rate (in percentage)
+scale_factor = 10  # Scale factor for buy/sell rewards
+hold_factor = 2  # Hold factor for holding rewards
+transaction_penalty = 1  # Penalty for making a transaction
+
+intrinsic_value = calculate_intrinsic_value(eps, expected_growth_rate)
+reward = calculate_reward(action, stock_price, intrinsic_value, initial_buy_price, eps, expected_growth_rate,
+                          scale_factor, hold_factor, transaction_penalty)
+```
+
+
+```python
+if predicted_action == "BUY":
+    recent_volatility = np.std(past_n_prices[-8:]) / np.mean(past_n_prices[-8:])
+    reward = ((intrinsic_value - close_price) / close_price) * SCALE_FACTOR * (1 - recent_volatility)
+    reward = max(min(reward, 1), -1)
+
+elif predicted_action == "SELL":
+    profit = total_sell_price - total_buy_price
+    if profit < 0:
+        recent_trend = np.mean(past_n_prices[-8:]) / np.mean(past_n_prices[-40:-8])
+        reward = -1 * abs(close_price - intrinsic_value) / intrinsic_value * SCALE_FACTOR * (1 - recent_trend)
+        reward = max(min(reward, 1), -1)    
+    else:
+        if portfolio_value > portfolio_value_threshold:
+            price_increase = (close_price - buy_price) / buy_price
+            reward = price_increase * SCALE_FACTOR * 4
+            reward = max(min(reward, 1), -1)
+        else:
+            price_increase = (close_price - buy_price) / buy_price
+            reward = price_increase * SCALE_FACTOR * 2
+            reward = max(min(reward, 1), -1)
+
+
+elif predicted_action == "HOLD":
+    if shares_holding == 0:
+        market_trend = np.mean(past_n_prices[-8:]) / np.mean(past_n_prices[-40:-8])
+        reward = 0.1 * market_trend
+        reward = max(min(reward, 1), -1)
+    else:
+        if portfolio_value > portfolio_value_threshold:
+            consistent_growth = np.mean(np.diff(past_n_prices[-8:])) / np.mean(past_n_prices[-8:])
+            reward = (((close_price - buy_price) / buy_price) * HOLD_FACTOR + consistent_growth)
+            reward = max(min(reward, 1), -1)
+        else:
+            rate_of_decline = -1 * np.mean(np.diff(past_n_prices[-8:])) / np.mean(past_n_prices[-8:])
+            reward = (((close_price - buy_price) / buy_price) * HOLD_FACTOR + rate_of_decline)
+            reward = max(min(reward, 1), -1)
+```
+
+
+
+User
+I want you to act like Warren Buffett who is king of stock market who also has knowledge of Reinforcement Learning.  
+I have created a complete environment for single stock trading which consist of below template
+ 
+```python
+if predicted_action == "BUY":
+    reward = ...
+
+elif predicted_action == "SELL":
+    profit = total_sell_price - total_buy_price
+    if profit < 0:
+        reward = ...
+    else:
+        if portfolio_value > portfolio_value_threshold:
+            reward = ...
+            portfolio_value_threshold = portfolio_value
+        else:
+            reward = ...
+
+
+elif predicted_action == "HOLD":
+    if shares_holding == 0:
+        reward = ...
+    else:
+        if portfolio_value > portfolio_value_threshold:
+            reward = ...
+        else:
+            reward = ...
+```
+
+Your task is to analyze the above code and craft one of the best reward function this world has ever witness with only past 40 hours of observation space. This reward function will start with 10K as initial amount and will have 200 trading hours. Reward function should consist of maximum profit with minimal yet all potential trade counters, while beating a human which has scored 12100 in portfolio value. Make sure that the Agent dont go full churning. Follow RL best practices. Write all code within provided template only don't call any unspecified function. Think step by step and you are the best
+
+
+```
+User
+I want you to act like Warren Buffett who is king of stock market who also has knowledge of Reinforcement Learning.  
+I have created a complete environment for single stock trading which consist of below "template"
+```python
+if predicted_action == "BUY":
+    reward = ...
+
+elif predicted_action == "SELL":
+    profit = total_sell_price - total_buy_price
+    if profit < 0:
+        reward = ...
+    else:
+        if portfolio_value > portfolio_value_threshold:
+            reward = ...
+            portfolio_value_threshold = portfolio_value
+        else:
+            reward = ...
+
+elif predicted_action == "HOLD":
+    if shares_holding == 0:
+        reward = ...
+    else:
+        if portfolio_value > portfolio_value_threshold:
+            reward = ...
+        else:
+            reward = ...
+```
+
+Your task is to analyze the above code and craft one of the best reward function this world has ever witness with "only past 40 hours" of observation space in environment. This reward function will start with 10K as initial amount and will have 200 trading hours. Reward function should consist of maximum profit with minimal yet all potential trade counters, while beating a human which has scored 12100 in portfolio value. Make sure that the Agent dont  "churning". Follow "Reinforcement Learning best practices and Warren's Intelligence". Write all code within provided template only don't call any "unspecified function". Take a deep breath and let's solve this together, I'll run the simulation and provide you with the update. You have entire world's knowledge. Make it good use. I want the working, best reward function.
+
+```

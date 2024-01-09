@@ -1,15 +1,17 @@
 from pathlib import Path
 
-from sbx import SAC
+from sbx import TD3
 from stable_baselines3.common.env_checker import check_env
 
 from callbacks.eval_callback import EvalCallback
 from common.make_vec_env import make_vec_env
 # from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
+from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 from envs.single_stock_trading_reward_only_at_sell import StockTradingEnv
 
 from common.load_close_prices import load_close_prices
 from common.set_seed import set_seed
+import numpy as np
 
 SEED = 1337
 set_seed(SEED)
@@ -20,10 +22,10 @@ TRAIN_FILE = Path("datasets") / f"{TICKER}"
 CLOSE_PRICES = load_close_prices(TICKER)
 
 def main():
-    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_jax-sac"
+    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_jax-td3"
     num_envs = 1024 * 2
     n_steps = 128
-    epoch = 500 // 10
+    epoch = 500 // 5
     total_timesteps = (num_envs * n_steps) * epoch
     check_env(StockTradingEnv(CLOSE_PRICES, seed=SEED))
     vec_env = make_vec_env(
@@ -32,10 +34,12 @@ def main():
         start_seed=SEED,
         n_envs=num_envs,
     )
+    n_actions = vec_env.action_space.shape[-1]
+    action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions))
 
     if Path(f"trained_models/{model_name}.zip").exists():
         reset_num_timesteps = False
-        model = SAC.load(
+        model = TD3.load(
             f"trained_models/{model_name}.zip",
             vec_env,
             print_system_info=True,
@@ -45,11 +49,12 @@ def main():
         # model.use_sde = True
     else:
         reset_num_timesteps = True
-        model = SAC(
+        model = TD3(
             "MlpPolicy",
             vec_env,
             # learning_rate=0.00001,
-            verbose=0,
+            verbose=2,
+            action_noise=action_noise,
             # n_steps=n_steps,
             # device="auto",
             # ent_coef=0.15,
@@ -62,9 +67,9 @@ def main():
             tensorboard_log="tensorboard_log",
             policy_kwargs = dict(
                 net_arch=dict(
-                    pi=[512, 1024, 512], qf=[512, 1024, 512]
+                    pi=[512, 512], qf=[512, 512]
                 ),
-                log_std_init=1
+                # log_std_init=2
             )
         )
 

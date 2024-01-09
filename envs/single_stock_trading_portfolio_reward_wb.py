@@ -1,9 +1,32 @@
 import gymnasium as gym
 import numpy as np
 from gymnasium.spaces import Box, Discrete
+from common.load_close_prices import load_close_prices
+from random import randint
+from secrets import SystemRandom
+
 
 
 ACTION_MAP = {0: "HOLD", 1: "BUY", 2: "SELL"}
+EPS = 37.54
+EXPECTED_GROWTH_RATE = 10
+SCALE_FACTOR = 10
+HOLD_FACTOR = 5
+TRANSACTION_PENALTY = 1
+RISK_ADJUSTMENT_FACTOR = 0.75  # Adjusts reward based on risk
+DIVERSIFICATION_BONUS = 0.5    # Bonus for diversification
+MAX_LOSS_THRESHOLD = 0.1       # Maximum allowable loss as a fraction of portfolio
+PROFIT_SCALING_FACTOR = 0.02
+LOSS_PENALTY_FACTOR = 0.08
+HOLD_REWARD = 0.01
+HOLD_PENALTY = -0.01
+TRADE_PENALTY = 0.05  # Significantly increased penalty for each trade
+HOLDING_REWARD_BASE = 0.001  # Base reward for holding shares
+NO_SHARE_HOLDING_REWARD = 0.002  # Reward for holding with no shares
+INITIAL_AMOUNT = 10_000
+TICKER = "WHIRLPOOL.NS"
+TICKER = "WIPRO.NS"
+CLOSE_PRICES = load_close_prices(TICKER)
 
 
 class StockTradingEnv(gym.Env):
@@ -23,8 +46,10 @@ class StockTradingEnv(gym.Env):
 
     def __init__(self, close_prices, seed):
         super().__init__()
+        r = SystemRandom()
+        self.starting_random_number = r.randint(0, len(CLOSE_PRICES)-250)
 
-        self.close_prices = close_prices
+        self.close_prices = CLOSE_PRICES[self.starting_random_number:self.starting_random_number+200]
         self.length = len(self.close_prices)
 
         self.observation_space = Box(
@@ -34,12 +59,6 @@ class StockTradingEnv(gym.Env):
             dtype=np.float32,
         )
         self.action_space = Discrete(3)
-        # self.action_space = Box(
-        #     low=-1,
-        #     high=1,
-        #     shape=(3,),
-        #     dtype=np.float32,
-        # )
         self.seed = seed
 
     def reset(self, *, seed=None, options=None):
@@ -164,8 +183,6 @@ class StockTradingEnv(gym.Env):
         portfolio_value_threshold = self.state[63]
 
 
-        # best_action = np.argmax(action)
-        # predicted_action = ACTION_MAP[best_action]
         predicted_action = ACTION_MAP[action]
 
 
@@ -187,9 +204,8 @@ class StockTradingEnv(gym.Env):
             total_buy_price = buy_price * shares_bought
             buy_price_index = counter
             available_amount -= total_buy_price
-            reward += shares_bought
-
             short_desc = f"Purchase Successful"
+            reward = -0.01
 
             buy_counter += 1
             hold_streak = 0
@@ -208,25 +224,34 @@ class StockTradingEnv(gym.Env):
             if profit < 0:
                 short_desc = "LOSS of profit when SELL"
                 bad_sell_loss += profit
-                reward -= total_sell_price
+                reward = -1
+                wrong_trade += 1
+
             else:
-                if portfolio_value > portfolio_value_threshold:
-                    short_desc = "Profitable SOLD (exceeded PV threshold)"
+
+                if hold_streak < 3:
+                    short_desc = "DIRECT SELL AFTER Buy with PROFIT"
+                    bad_sell_loss += profit
+                    reward = -1
+                    wrong_trade += 1
+
+                elif portfolio_value > portfolio_value_threshold:
+                    short_desc = "exceeded PV SOLD"
                     good_sell_profit += profit
                     portfolio_value_threshold = portfolio_value
                     self.updated_portfolio_value += 1
+                    reward = 0.99
                     correct_trade += 1
-                    reward += (total_sell_price) * 100
+
                 else:
+                    wrong_trade += 1
+                    reward = 0.5
                     short_desc = "Profitable SOLD"
                     good_sell_profit += profit
-                    # portfolio_value_threshold =   
-                    reward += (total_sell_price) * 2
 
 
             short_desc = f"{short_desc} Sale Executed."
-            self.sell_tracker += f"({counter},{sell_price}),"
-
+            self.sell_tracker += f"({counter},{sell_price},{short_desc},{profit},{reward}),"
 
             sell_counter += 1
             shares_holding = 0
@@ -241,7 +266,7 @@ class StockTradingEnv(gym.Env):
                 short_desc = f"Waiting for buying shares"
                 waiting_streak += 1
                 holds_with_no_shares_counter += 1
-                reward += 0
+
 
             else:
                 portfolio_value = shares_holding * close_price + available_amount
@@ -251,21 +276,43 @@ class StockTradingEnv(gym.Env):
                 waiting_streak = 0
 
                 if portfolio_value > portfolio_value_threshold:
-                    reward += (
-                        portfolio_value - portfolio_value_threshold
-                    ) * self.updated_portfolio_value
                     good_hold_profit = portfolio_value - portfolio_value_threshold
                     correct_trade += 1
+                    reward = 0.6
                 else:
-                    reward += portfolio_value - portfolio_value_threshold
+                    wrong_trade += 1
                     bad_hold_loss = portfolio_value_threshold - portfolio_value
+                    reward = -1
 
         else:
             print(predicted_action)
             ValueError("Something is wrong in conditions")
 
 
-        # Attempting to sell right after buying
+
+        # # Churning penalty
+        # if (buy_counter+sell_counter) > 10:
+        #     reward += -0.1 * (buy_counter+sell_counter - 10)
+
+        base_value = 10000
+        increment = 0.0001
+        if portfolio_value > base_value:
+            reward_increment = ((portfolio_value - base_value) // 100) * increment
+            reward += reward_increment + 0.001
+
+        if portfolio_value < portfolio_value_threshold and sell_counter > 1:
+            reward -= 0.1
+        
+        # if portfolio_value > portfolio_value_threshold:
+        #     reward += 0.002
+        
+        if portfolio_value == 10_000 and counter > 30:
+            reward -= 1
+
+
+        # reward = max(min(reward, 1), -1)
+
+        # # Attempting to sell right after buying
         # if predicted_action == "SELL" and (
         #     hold_streak < 2
         # ):
@@ -286,6 +333,8 @@ class StockTradingEnv(gym.Env):
         if portfolio_value < 10_000:
             terminated = True
             short_desc = "PORTFOLIO VALUE is less than 10_000"
+        
+
         
         # else:
         #     pass
@@ -328,8 +377,8 @@ class StockTradingEnv(gym.Env):
 
 
         if terminated:
-            reward -= 50_000
-            wrong_trade += 1
+            reward -= 2
+            # wrong_trade += 1
 
 
         description = (
@@ -404,6 +453,7 @@ class StockTradingEnv(gym.Env):
             "updated_portfolio_value": self.updated_portfolio_value,
             "buy_tracker": self.buy_tracker,
             "sell_tracker": self.sell_tracker,
+            "starting_random_number": self.starting_random_number
         }
 
         if done or terminated:
@@ -464,8 +514,3 @@ class StockTradingEnv(gym.Env):
 
     def close(self):
         pass
-
-    def calculate_percent(self, v1, v2):
-        if v1 == 0 or v2 == 0:
-            return 0
-        return round((v1 / (v2)) * 100, 2)

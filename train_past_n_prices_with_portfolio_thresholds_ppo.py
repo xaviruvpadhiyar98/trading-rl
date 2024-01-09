@@ -7,7 +7,8 @@ from stable_baselines3.common.env_checker import check_env
 from callbacks.eval_callback import EvalCallback
 from common.make_vec_env import make_vec_env
 # from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
-from envs.single_stock_trading_reward_only_at_sell import StockTradingEnv
+# from envs.single_stock_trading_reward_only_at_sell import StockTradingEnv
+from envs.single_stock_trading_portfolio_reward_wb import StockTradingEnv
 
 from common.load_close_prices import load_close_prices
 from common.set_seed import set_seed
@@ -21,7 +22,7 @@ TRAIN_FILE = Path("datasets") / f"{TICKER}"
 CLOSE_PRICES = load_close_prices(TICKER)
 
 def main():
-    model_name = f"single_stock_trading_portfolio_reward_{TICKER.split('.')[0]}_ppo"
+    model_name = f"portfolio_reward_wb_{TICKER.split('.')[0]}_ppo"
     num_envs = 2056
     n_steps = 128
     epoch = 50

@@ -1,6 +1,6 @@
 import yfinance as yf
 
-TICKERS = "WHIRLPOOL.NS"
+TICKERS = "WIPRO.NS"
 INTERVAL = "1h"
 PERIOD = "720d"
 ticker_file = f"datasets/{TICKERS}"

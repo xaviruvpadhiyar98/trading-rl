@@ -7,7 +7,8 @@ from stable_baselines3.common.env_checker import check_env
 from callbacks.eval_callback import EvalCallback
 from common.make_vec_env import make_vec_env
 # from envs.single_stock_trading_past_n_price_portfolio_reward_env import StockTradingEnv
-from envs.single_stock_trading_reward_only_at_sell import StockTradingEnv
+# from envs.single_stock_trading_reward_only_at_sell import StockTradingEnv
+from envs.single_stock_trading_portfolio_reward_wb import StockTradingEnv
 
 from common.load_close_prices import load_close_prices
 from common.set_seed import set_seed
@@ -21,11 +22,15 @@ TRAIN_FILE = Path("datasets") / f"{TICKER}"
 CLOSE_PRICES = load_close_prices(TICKER)
 
 def main():
-    model_name = f"single_stock_trading_portfolio_reward_new_arch_{TICKER.split('.')[0]}_jax-ppo"
-    num_envs = 2056
-    n_steps = 128
-    epoch = 500 // 10
+    model_name = f"portfolio_reward_new_arch_2_wb_{TICKER.split('.')[0]}_jax-ppo"
+    print(model_name)
+    num_envs = 128
+    n_steps = 32
+    epoch = 500 // 5
+    epoch = 1500
     total_timesteps = (num_envs * n_steps) * epoch
+    ent_coef = 0.04
+    n_epochs = 20
     check_env(StockTradingEnv(CLOSE_PRICES, seed=SEED))
     vec_env = make_vec_env(
         env_id=StockTradingEnv,
@@ -41,21 +46,24 @@ def main():
             vec_env,
             print_system_info=True,
             device="auto",
+            ent_coef=ent_coef,
+            n_epochs=n_epochs,
+            n_steps=n_steps,
+            verbose=0
         )
-        model.ent_coef = 0.0 # now let's exploit
-        model.use_sde = True
     else:
         reset_num_timesteps = True
         model = PPO(
             "MlpPolicy",
             vec_env,
-            verbose=2,
+            verbose=0,
             n_steps=n_steps,
             device="auto",
-            ent_coef=0.05,
+            n_epochs=n_epochs,
+            ent_coef=ent_coef,
             tensorboard_log="tensorboard_log",
             policy_kwargs = dict(
-                net_arch=dict(pi=[32, 64, 128, 64, 32], vf=[32, 64, 128, 64, 32])
+                net_arch=dict(pi=[1024, 2048, 1024], vf=[1024, 2048, 1024])
             )
         )
 
